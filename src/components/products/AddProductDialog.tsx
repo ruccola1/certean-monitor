@@ -88,12 +88,15 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
       setUploadedFiles([]);
       setUploadedImages([]);
 
-      // Close dialog
+      // Close dialog and notify parent FIRST
       onOpenChange(false);
       
-      // Notify parent component
+      // Notify parent component with a slight delay to ensure product is saved
       if (onProductAdded) {
-        onProductAdded();
+        // Wait 500ms to ensure backend has saved the product
+        setTimeout(() => {
+          onProductAdded();
+        }, 500);
       }
     } catch (err: any) {
       console.error('Error creating product:', err);

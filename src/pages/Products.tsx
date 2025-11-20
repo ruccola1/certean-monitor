@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Trash2, ChevronRight, Play, ChevronDown, ChevronUp, Package, AlertTriangle, CheckCircle2, FileCheck, RefreshCw } from 'lucide-react';
+import { Loader2, Plus, Trash2, ChevronRight, Play, ChevronDown, ChevronUp, Package, AlertTriangle, CheckCircle2, FileCheck, RefreshCw, XCircle } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
@@ -26,10 +26,17 @@ interface Component {
 }
 
 interface Step0Results {
-  components: Component[];
-  summary: string;
-  processingTime: string;
-  aiModel: string;
+  product_decomposition?: string;
+  product_overview?: string;
+  research_sources?: number;
+  components_count?: number;
+  categories?: string[];
+  materials?: string[];
+  // Legacy
+  components?: Component[];
+  summary?: string;
+  processingTime?: string;
+  aiModel?: string;
 }
 
 interface ComponentAssessment {
@@ -41,10 +48,16 @@ interface ComponentAssessment {
 }
 
 interface Step1Results {
-  assessments: ComponentAssessment[];
-  summary: string;
-  processingTime: string;
-  aiModel: string;
+  compliance_assessment: string;
+  word_count: number;
+  model_used: any;
+  ai_count: number;
+  target_markets: string[];
+  // Legacy structure (not used anymore)
+  assessments?: ComponentAssessment[];
+  summary?: string;
+  processingTime?: string;
+  aiModel?: string;
 }
 
 interface ComplianceElement {
@@ -57,10 +70,60 @@ interface ComplianceElement {
 }
 
 interface Step2Results {
-  complianceElements: ComplianceElement[];
-  summary: string;
-  processingTime: string;
-  aiModel: string;
+  compliance_elements: Array<{
+    element_designation?: string;
+    designation?: string;
+    name?: string;
+    element_type?: string;
+    type?: string;
+    element_description_long?: string;
+    description?: string;
+    element_countries?: string[];
+    countries?: string[];
+    [key: string]: any;
+  }>;
+  elements_count: number;
+  model_used: any;
+  ai_count: number;
+  target_markets: string[];
+  raw_response?: string;
+  // Legacy
+  complianceElements?: ComplianceElement[];
+  totalElements?: number;
+  categorizedBy?: string;
+}
+
+interface Step3Results {
+  compliance_sources: Array<{
+    element_name?: string;
+    name?: string;
+    element_url?: string;
+    url?: string;
+    element_description?: string;
+    description?: string;
+    [key: string]: any;
+  }>;
+  sources_count: number;
+  model_used: any;
+  ai_count: number;
+  target_markets: string[];
+  raw_response?: string;
+}
+
+interface Step4Results {
+  compliance_updates: Array<{
+    element_name?: string;
+    update_type?: string;
+    update_date?: string;
+    update_description?: string;
+    source_url?: string;
+    [key: string]: any;
+  }>;
+  updates_count: number;
+  model_used: any;
+  ai_count: number;
+  target_markets: string[];
+  raw_response?: string;
 }
 
 interface Product {
@@ -73,12 +136,36 @@ interface Product {
   step0Status: string;
   step1Status: string;
   step2Status: string;
+  step3Status: string;
+  step4Status: string;
   createdAt: string;
   step0Results?: Step0Results;
   step1Results?: Step1Results;
   step2Results?: Step2Results;
+  step3Results?: Step3Results;
+  step4Results?: Step4Results;
   components?: Component[];
   step0Progress?: {
+    current: string;
+    percentage: number;
+    steps: Array<{message: string; timestamp: string}>;
+  };
+  step1Progress?: {
+    current: string;
+    percentage: number;
+    steps: Array<{message: string; timestamp: string}>;
+  };
+  step2Progress?: {
+    current: string;
+    percentage: number;
+    steps: Array<{message: string; timestamp: string}>;
+  };
+  step3Progress?: {
+    current: string;
+    percentage: number;
+    steps: Array<{message: string; timestamp: string}>;
+  };
+  step4Progress?: {
     current: string;
     percentage: number;
     steps: Array<{message: string; timestamp: string}>;
@@ -93,6 +180,8 @@ export default function Products() {
   const [expandedStep0, setExpandedStep0] = useState<string | null>(null);
   const [expandedStep1, setExpandedStep1] = useState<string | null>(null);
   const [expandedStep2, setExpandedStep2] = useState<string | null>(null);
+  const [expandedStep3, setExpandedStep3] = useState<string | null>(null);
+  const [expandedStep4, setExpandedStep4] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; productId: string; productName: string }>({
     open: false,
     productId: '',
@@ -117,6 +206,7 @@ export default function Products() {
   };
 
   useEffect(() => {
+    // Fetch products immediately when component mounts
     fetchProducts();
 
     // Poll for updates every 5 seconds
@@ -130,10 +220,64 @@ export default function Products() {
       if (interval) clearInterval(interval);
     };
   }, []);
+  
+  // Force refresh when navigating to this page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchProducts();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', fetchProducts);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', fetchProducts);
+    };
+  }, []);
 
   const handleProductAdded = () => {
     setShowAddDialog(false);
     fetchProducts(); // Refresh the list
+  };
+
+  const handleDiscardSource = async (productId: string, sourceIndex: number) => {
+    try {
+      // Update the product to mark the source as discarded
+      await apiService.getInstance().patch(`/api/products/${productId}/discard-source`, {
+        sourceIndex
+      });
+      console.log('Source discarded for product:', productId, 'index:', sourceIndex);
+      fetchProducts();
+    } catch (error) {
+      console.error('Failed to discard source:', error);
+    }
+  };
+
+  const handleRemoveCategory = async (productId: string, category: string) => {
+    try {
+      await apiService.getInstance().patch(`/api/products/${productId}/remove-category`, {
+        category
+      });
+      console.log('Category removed:', category);
+      fetchProducts();
+    } catch (error) {
+      console.error('Failed to remove category:', error);
+    }
+  };
+
+  const handleRemoveMaterial = async (productId: string, material: string) => {
+    try {
+      await apiService.getInstance().patch(`/api/products/${productId}/remove-material`, {
+        material
+      });
+      console.log('Material removed:', material);
+      fetchProducts();
+    } catch (error) {
+      console.error('Failed to remove material:', error);
+    }
   };
 
   const handleStartStep0 = async (productId: string) => {
@@ -173,7 +317,27 @@ export default function Products() {
     }
   };
 
-  const handleRefreshStep = async (productId: string, step: 0 | 1 | 2) => {
+  const handleStartStep3 = async (productId: string) => {
+    try {
+      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step3`);
+      console.log('Step 3 started for product:', productId, response.data);
+      fetchProducts();
+    } catch (error) {
+      console.error('Failed to start Step 3:', error);
+    }
+  };
+
+  const handleStartStep4 = async (productId: string) => {
+    try {
+      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step4`);
+      console.log('Step 4 started for product:', productId, response.data);
+      fetchProducts();
+    } catch (error) {
+      console.error('Failed to start Step 4:', error);
+    }
+  };
+
+  const handleRefreshStep = async (productId: string, step: 0 | 1 | 2 | 3 | 4) => {
     try {
       console.log(`Refreshing Step ${step} for product:`, productId);
       if (step === 0) {
@@ -182,9 +346,24 @@ export default function Products() {
         await handleStartStep1(productId);
       } else if (step === 2) {
         await handleStartStep2(productId);
+      } else if (step === 3) {
+        await handleStartStep3(productId);
+      } else if (step === 4) {
+        await handleStartStep4(productId);
       }
     } catch (error) {
       console.error(`Failed to refresh Step ${step}:`, error);
+    }
+  };
+
+  const handleStopStep = async (productId: string, step: 0 | 1 | 2 | 3 | 4) => {
+    try {
+      console.log(`Stopping Step ${step} for product:`, productId);
+      await productService.stopStep(productId, step);
+      console.log(`Step ${step} stopped successfully`);
+      fetchProducts();
+    } catch (error) {
+      console.error(`Failed to stop Step ${step}:`, error);
     }
   };
 
@@ -205,7 +384,10 @@ export default function Products() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string | undefined) => {
+    // Default to 'pending' if status is undefined
+    const displayStatus = status || 'pending';
+    
     const statusColors: Record<string, string> = {
       pending: 'bg-gray-200 text-gray-700',
       processing: 'bg-blue-100 text-blue-700',
@@ -216,11 +398,11 @@ export default function Products() {
     };
 
     return (
-      <Badge className={`${statusColors[status] || 'bg-gray-200 text-gray-700'} border-0`}>
-        {status === 'running' || status === 'processing' ? (
+      <Badge className={`${statusColors[displayStatus] || 'bg-gray-200 text-gray-700'} border-0`}>
+        {displayStatus === 'running' || displayStatus === 'processing' ? (
           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
         ) : null}
-        {status}
+        {displayStatus}
       </Badge>
     );
   };
@@ -309,7 +491,17 @@ export default function Products() {
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs text-gray-500">Step 0:</span>
                             {getStatusBadge(product.step0Status)}
-                            {(product.step0Status === 'completed' || product.step0Status === 'error') && (
+                            {(product.step0Status === 'running' || product.step0Status === 'processing') ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStopStep(product.id, 0)}
+                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                                title="Stop Step 0"
+                              >
+                                <XCircle className="w-3 h-3" />
+                              </Button>
+                            ) : (product.step0Status === 'completed' || product.step0Status === 'error') && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -351,78 +543,161 @@ export default function Products() {
                           
                           {/* Expandable Step 0 Results */}
                           {expandedStep0 === product.id && product.step0Results && (
-                            <div className="ml-6 mt-2">
-                              {/* REAL Step 0 Results - Full Product Decomposition */}
-                              {product.step0Results.product_decomposition ? (
-                                <div>
-                                  <div className="mb-3">
-                                    <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                      Product Decomposition - Technical Specification
-                                    </h5>
-                                  </div>
-                                  <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
-                                    <div className="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
-                                      {product.step0Results.product_decomposition}
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                /* FALLBACK: Old fake format (for backwards compatibility) */
-                                <div>
-                                  <div className="mb-3">
-                                    <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                      Product Decomposition Results
-                                    </h5>
-                                    <p className="text-xs text-gray-600 mb-3">
-                                      {product.step0Results.summary}
-                                    </p>
-                                    <div className="flex gap-4 text-xs text-gray-400 mb-3">
-                                      <span>Processing time: {product.step0Results.processingTime}</span>
-                                      <span>Model: {product.step0Results.aiModel}</span>
-                                      <span>{product.step0Results.components?.length || 0} components</span>
-                                    </div>
-                                  </div>
-
-                                  {product.step0Results.components && (
-                                    <div className="space-y-2">
-                                      {product.step0Results.components.map((component: any) => (
-                                        <div
-                                          key={component.id}
-                                          className="bg-dashboard-view-background p-3"
-                                        >
-                                          <div className="flex items-start gap-2">
-                                            <Package className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                                {component.name}
-                                              </h6>
-                                              <p className="text-xs text-gray-600 mb-2">
-                                                {component.description}
-                                              </p>
-                                              <div className="text-xs mb-2">
-                                                <span className="text-gray-500">Function:</span>
-                                                <span className="ml-1 text-[hsl(var(--dashboard-link-color))]">
-                                                  {component.function}
-                                                </span>
-                                              </div>
-                                              {component.materials && (
-                                                <div className="flex flex-wrap gap-1">
-                                                  {component.materials.map((material: string, idx: number) => (
-                                                    <Badge
-                                                      key={idx}
-                                                      className="bg-gray-100 text-gray-700 text-xs border-0"
-                                                    >
-                                                      {material}
-                                                    </Badge>
-                                                  ))}
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
+                            <div className="ml-6 mt-2 space-y-4">
+                              {/* Parent: Product Overview */}
+                              <div>
+                                <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                  Product Overview
+                                </h5>
+                                <div className="bg-dashboard-view-background p-4 space-y-4">
+                                  {/* Categories - First */}
+                                  {product.step0Results.categories && product.step0Results.categories.length > 0 && (
+                                    <div>
+                                      <h6 className="text-xs font-semibold text-gray-600 mb-2">Categories</h6>
+                                      <div className="flex flex-wrap gap-2">
+                                        {product.step0Results.categories.map((category: string, idx: number) => (
+                                          <Badge 
+                                            key={idx} 
+                                            className="bg-blue-100 text-blue-700 border-0 flex items-center gap-1 pr-1"
+                                          >
+                                            {category}
+                                            <button
+                                              onClick={() => handleRemoveCategory(product.id, category)}
+                                              className="ml-1 hover:bg-blue-200 rounded-full p-0.5"
+                                              title="Remove category"
+                                            >
+                                              ✕
+                                            </button>
+                                          </Badge>
+                                        ))}
+                                      </div>
                                     </div>
                                   )}
+                                  
+                                  {/* Materials - Second */}
+                                  {product.step0Results.materials && product.step0Results.materials.length > 0 && (
+                                    <div>
+                                      <h6 className="text-xs font-semibold text-gray-600 mb-2">Materials</h6>
+                                      <div className="flex flex-wrap gap-2">
+                                        {product.step0Results.materials.map((material: string, idx: number) => (
+                                          <Badge 
+                                            key={idx} 
+                                            className="bg-purple-100 text-purple-700 border-0 flex items-center gap-1 pr-1"
+                                          >
+                                            {material}
+                                            <button
+                                              onClick={() => handleRemoveMaterial(product.id, material)}
+                                              className="ml-1 hover:bg-purple-200 rounded-full p-0.5"
+                                              title="Remove material"
+                                            >
+                                              ✕
+                                            </button>
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Product Overview Text - Third */}
+                                  <div>
+                                    <p className="text-xs text-gray-700 whitespace-pre-wrap">
+                                      {product.step0Results.product_overview || product.description}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Components */}
+                              {product.components && product.components.length > 0 && (
+                                <div>
+                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                    Components ({product.components.length})
+                                  </h5>
+                                  <div className="space-y-3">
+                                    {product.components.map((component: any, idx: number) => (
+                                      <div key={idx} className="bg-dashboard-view-background p-4">
+                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          {component.name || `Component ${idx + 1}`}
+                                        </h6>
+                                        
+                                        {/* Description */}
+                                        {component.description && (
+                                          <div className="mb-3">
+                                            <p className="text-xs text-gray-700 whitespace-pre-wrap">
+                                              {component.description}
+                                            </p>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Materials */}
+                                        {component.materials && (
+                                          <div className="mb-3">
+                                            <span className="text-xs font-semibold text-gray-600">Materials: </span>
+                                            <span className="text-xs text-gray-700">{component.materials}</span>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Function */}
+                                        {component.function && (
+                                          <div className="mb-3">
+                                            <span className="text-xs font-semibold text-gray-600">Function: </span>
+                                            <span className="text-xs text-gray-700">{component.function}</span>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Technical Specifications Table */}
+                                        {component.technical_specifications && (
+                                          <div className="mt-3">
+                                            <h6 className="text-xs font-semibold text-gray-600 mb-2">Technical Specifications</h6>
+                                            <div className="bg-white border-0">
+                                              <table className="w-full text-xs">
+                                                <tbody>
+                                                  {Object.entries(component.technical_specifications).map(([key, value], specIdx) => (
+                                                    <tr key={specIdx} className="border-b border-gray-200 last:border-0">
+                                                      <td className="py-2 px-3 font-semibold text-gray-600 bg-gray-50 w-1/3">
+                                                        {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                                      </td>
+                                                      <td className="py-2 px-3 text-gray-700">
+                                                        {String(value)}
+                                                      </td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Research Sources */}
+                              {product.step0Results.research_sources && product.step0Results.research_sources > 0 && (
+                                <div>
+                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                    Research Sources ({product.step0Results.research_sources})
+                                  </h5>
+                                  <div className="bg-dashboard-view-background p-4 space-y-2">
+                                    <p className="text-xs text-gray-600">
+                                      {product.step0Results.research_sources} sources used. Sources can be managed in Step 1.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Fallback: Show raw text if no components */}
+                              {!product.components && product.step0Results.product_decomposition && (
+                                <div>
+                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                    Product Decomposition
+                                  </h5>
+                                  <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
+                                    <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
+                                      {product.step0Results.product_decomposition}
+                                    </pre>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -432,10 +707,19 @@ export default function Products() {
                         {/* Step 1 */}
                         <div>
                           <div className="flex items-center gap-2 mb-2">
-                            <ChevronRight className="w-3 h-3 text-gray-300" />
                             <span className="text-xs text-gray-500">Step 1:</span>
                             {getStatusBadge(product.step1Status)}
-                            {(product.step1Status === 'completed' || product.step1Status === 'error') && (
+                            {(product.step1Status === 'running' || product.step1Status === 'processing') ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStopStep(product.id, 1)}
+                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                                title="Stop Step 1"
+                              >
+                                <XCircle className="w-3 h-3" />
+                              </Button>
+                            ) : (product.step1Status === 'completed' || product.step1Status === 'error') && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -445,6 +729,12 @@ export default function Products() {
                               >
                                 <RefreshCw className="w-3 h-3" />
                               </Button>
+                            )}
+                            {product.step1Status === 'running' && product.step1Progress && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600">{product.step1Progress.current}</span>
+                                <span className="text-xs text-gray-400">({product.step1Progress.percentage}%)</span>
+                              </div>
                             )}
                             {product.step1Status === 'completed' && product.step1Results && (
                               <Button
@@ -473,70 +763,15 @@ export default function Products() {
                             <div className="ml-6 mt-2">
                               <div className="mb-3">
                                 <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                  Compliance Assessment Results
+                                  Compliance Assessment
                                 </h5>
-                                <p className="text-xs text-gray-600 mb-3">
-                                  {product.step1Results.summary}
-                                </p>
-                                <div className="flex gap-4 text-xs text-gray-400 mb-3">
-                                  <span>Processing time: {product.step1Results.processingTime}</span>
-                                  <span>Model: {product.step1Results.aiModel}</span>
-                                  <span>{product.step1Results.assessments.length} assessments</span>
-                                </div>
                               </div>
-
-                              <div className="space-y-2">
-                                {product.step1Results.assessments.map((assessment) => (
-                                  <div
-                                    key={assessment.componentId}
-                                    className="bg-dashboard-view-background p-3"
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <CheckCircle2 className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
-                                      <div className="flex-1">
-                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                          {assessment.componentName}
-                                        </h6>
-                                        <div className="text-xs mb-2">
-                                          <span className="text-gray-500">Risk Level:</span>
-                                          <Badge className={`ml-2 text-xs border-0 ${
-                                            assessment.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
-                                            assessment.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                            'bg-green-100 text-green-700'
-                                          }`}>
-                                            {assessment.riskLevel}
-                                          </Badge>
-                                        </div>
-                                        <div className="text-xs mb-2">
-                                          <span className="text-gray-500">Requirements:</span>
-                                          <div className="mt-1 space-y-1">
-                                            {assessment.complianceRequirements.map((req, idx) => (
-                                              <div key={idx} className="text-[hsl(var(--dashboard-link-color))]">
-                                                • {req}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                        {assessment.testingRequired.length > 0 && (
-                                          <div className="text-xs">
-                                            <span className="text-gray-500">Testing Required:</span>
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                              {assessment.testingRequired.map((test, idx) => (
-                                                <Badge
-                                                  key={idx}
-                                                  className="bg-blue-50 text-blue-700 text-xs border-0"
-                                                >
-                                                  {test}
-                                                </Badge>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
+                              <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
+                                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
+                                  {product.step1Results.compliance_assessment || 'No assessment available'}
+                                </pre>
                               </div>
+                              
                             </div>
                           )}
                         </div>
@@ -544,10 +779,19 @@ export default function Products() {
                         {/* Step 2 */}
                         <div>
                           <div className="flex items-center gap-2 mb-2">
-                            <ChevronRight className="w-3 h-3 text-gray-300" />
                             <span className="text-xs text-gray-500">Step 2:</span>
                             {getStatusBadge(product.step2Status)}
-                            {(product.step2Status === 'completed' || product.step2Status === 'error') && (
+                            {(product.step2Status === 'running' || product.step2Status === 'processing') ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStopStep(product.id, 2)}
+                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                                title="Stop Step 2"
+                              >
+                                <XCircle className="w-3 h-3" />
+                              </Button>
+                            ) : (product.step2Status === 'completed' || product.step2Status === 'error') && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -557,6 +801,12 @@ export default function Products() {
                               >
                                 <RefreshCw className="w-3 h-3" />
                               </Button>
+                            )}
+                            {product.step2Status === 'running' && product.step2Progress && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600">{product.step2Progress.current}</span>
+                                <span className="text-xs text-gray-400">({product.step2Progress.percentage}%)</span>
+                              </div>
                             )}
                             {product.step2Status === 'completed' && product.step2Results && (
                               <Button
@@ -585,60 +835,415 @@ export default function Products() {
                             <div className="ml-6 mt-2">
                               <div className="mb-3">
                                 <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                  Compliance Elements Identified
+                                  Compliance Elements ({product.step2Results.elements_count || 0})
                                 </h5>
-                                <p className="text-xs text-gray-600 mb-3">
-                                  {product.step2Results.summary}
-                                </p>
-                                <div className="flex gap-4 text-xs text-gray-400 mb-3">
-                                  <span>Processing time: {product.step2Results.processingTime}</span>
-                                  <span>Model: {product.step2Results.aiModel}</span>
-                                  <span>{product.step2Results.complianceElements.length} elements</span>
-                                </div>
                               </div>
+                              
+                              {/* Display as structured list if we have parsed elements */}
+                              {product.step2Results.compliance_elements && Array.isArray(product.step2Results.compliance_elements) && product.step2Results.compliance_elements.length > 0 ? (
+                                <div className="space-y-2">
+                                  {product.step2Results.compliance_elements.map((element: any, idx: number) => {
+                                    const designation = element?.element_designation || element?.designation || element?.name || 'Unnamed';
+                                    const type = element?.element_type || element?.type || 'Unknown';
+                                    const description = element?.element_description_long || element?.description || '';
+                                    const countries = element?.element_countries || element?.countries || [];
+                                    
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="bg-dashboard-view-background p-3"
+                                      >
+                                        <div className="flex items-start gap-2">
+                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                                {designation}
+                                              </h6>
+                                            </div>
+                                            <div className="text-xs mb-2">
+                                              <Badge className="bg-gray-100 text-gray-700 text-xs border-0">
+                                                {type}
+                                              </Badge>
+                                            </div>
+                                            {description && (
+                                              <p className="text-xs text-gray-600 mb-2">
+                                                {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
+                                              </p>
+                                            )}
+                                            {Array.isArray(countries) && countries.length > 0 && (
+                                              <div className="flex flex-wrap gap-1">
+                                                {countries.map((country: any, cidx: number) => (
+                                                  <Badge
+                                                    key={cidx}
+                                                    className="bg-blue-50 text-blue-700 text-xs border-0"
+                                                  >
+                                                    {String(country)}
+                                                  </Badge>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                /* Fallback: Display raw response */
+                                <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
+                                  <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
+                                    {product.step2Results.raw_response || JSON.stringify(product.step2Results, null, 2) || 'No data available'}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
 
-                              <div className="space-y-2">
-                                {product.step2Results.complianceElements.map((element) => (
-                                  <div
-                                    key={element.id}
-                                    className="bg-dashboard-view-background p-3"
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
-                                            {element.name}
-                                          </h6>
-                                          {element.isMandatory && (
-                                            <Badge className="bg-red-50 text-red-700 text-xs border-0">
-                                              Mandatory
-                                            </Badge>
-                                          )}
+                        {/* Step 3 */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs text-gray-500">Step 3:</span>
+                            {getStatusBadge(product.step3Status)}
+                            {(product.step3Status === 'running' || product.step3Status === 'processing') ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStopStep(product.id, 3)}
+                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                                title="Stop Step 3"
+                              >
+                                <XCircle className="w-3 h-3" />
+                              </Button>
+                            ) : (product.step3Status === 'completed' || product.step3Status === 'error') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRefreshStep(product.id, 3)}
+                                className="h-6 px-2 text-xs text-gray-500 hover:text-[hsl(var(--dashboard-link-color))]"
+                                title="Re-run Step 3"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </Button>
+                            )}
+                            {product.step3Status === 'running' && product.step3Progress && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600">{product.step3Progress.current}</span>
+                                <span className="text-xs text-gray-400">({product.step3Progress.percentage}%)</span>
+                              </div>
+                            )}
+                            {product.step3Status === 'completed' && product.step3Results && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setExpandedStep3(expandedStep3 === product.id ? null : product.id)}
+                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
+                              >
+                                {expandedStep3 === product.id ? (
+                                  <>
+                                    <ChevronUp className="w-3 h-3 mr-1" />
+                                    Hide Results
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="w-3 h-3 mr-1" />
+                                    Show Results
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                            {(product.step3Status === 'pending' || !product.step3Status) && product.step2Status === 'completed' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStartStep3(product.id)}
+                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
+                              >
+                                <Play className="w-3 h-3 mr-1" />
+                                Start Next
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* Expandable Step 3 Results */}
+                          {expandedStep3 === product.id && product.step3Results && (
+                            <div className="ml-6 mt-2">
+                              <div className="mb-3">
+                                <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                  Compliance Sources ({product.step3Results.sources_count || 0})
+                                </h5>
+                              </div>
+                              
+                              {product.step3Results.compliance_sources && Array.isArray(product.step3Results.compliance_sources) && product.step3Results.compliance_sources.length > 0 ? (
+                                (() => {
+                                  // Group sources by type (legislation, standard, marking)
+                                  const groupedSources = product.step3Results.compliance_sources.reduce((acc: any, source: any) => {
+                                    const type = (source?.source_type || 'other').toLowerCase();
+                                    if (!acc[type]) acc[type] = [];
+                                    acc[type].push(source);
+                                    return acc;
+                                  }, {});
+
+                                  const legislation = groupedSources.legislation || [];
+                                  const standards = groupedSources.standard || [];
+                                  const markings = groupedSources.marking || [];
+
+                                  return (
+                                    <div className="grid grid-cols-3 gap-4">
+                                      {/* Legislation Column */}
+                                      <div>
+                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          Legislation ({legislation.length})
+                                        </h6>
+                                        <div className="space-y-2">
+                                          {legislation.map((source: any, idx: number) => {
+                                            const name = source?.element_name || source?.name || 'Unnamed';
+                                            const url = source?.source_url || source?.url || '';
+                                            const description = source?.description || '';
+                                            
+                                            return (
+                                              <div key={idx} className="bg-dashboard-view-background p-3">
+                                                <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                  {name}
+                                                </h6>
+                                                {url && (
+                                                  <a
+                                                    href={url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-blue-600 hover:underline mb-2 block"
+                                                  >
+                                                    {url}
+                                                  </a>
+                                                )}
+                                                {description && (
+                                                  <p className="text-xs text-gray-600">
+                                                    {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
-                                        <div className="text-xs mb-2">
-                                          <Badge className="bg-gray-100 text-gray-700 text-xs border-0">
-                                            {element.type}
-                                          </Badge>
+                                      </div>
+
+                                      {/* Standards Column */}
+                                      <div>
+                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          Standards ({standards.length})
+                                        </h6>
+                                        <div className="space-y-2">
+                                          {standards.map((source: any, idx: number) => {
+                                            const name = source?.element_name || source?.name || 'Unnamed';
+                                            const url = source?.source_url || source?.url || '';
+                                            const description = source?.description || '';
+                                            
+                                            return (
+                                              <div key={idx} className="bg-dashboard-view-background p-3">
+                                                <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                  {name}
+                                                </h6>
+                                                {url && (
+                                                  <a
+                                                    href={url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-blue-600 hover:underline mb-2 block"
+                                                  >
+                                                    {url}
+                                                  </a>
+                                                )}
+                                                {description && (
+                                                  <p className="text-xs text-gray-600">
+                                                    {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
-                                        <p className="text-xs text-gray-600 mb-2">
-                                          {element.applicability}
-                                        </p>
-                                        <div className="flex flex-wrap gap-1">
-                                          {element.markets.map((market, idx) => (
-                                            <Badge
-                                              key={idx}
-                                              className="bg-blue-50 text-blue-700 text-xs border-0"
-                                            >
-                                              {market}
-                                            </Badge>
-                                          ))}
+                                      </div>
+
+                                      {/* Markings Column */}
+                                      <div>
+                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          Markings ({markings.length})
+                                        </h6>
+                                        <div className="space-y-2">
+                                          {markings.map((source: any, idx: number) => {
+                                            const name = source?.element_name || source?.name || 'Unnamed';
+                                            const url = source?.source_url || source?.url || '';
+                                            const description = source?.description || '';
+                                            
+                                            return (
+                                              <div key={idx} className="bg-dashboard-view-background p-3">
+                                                <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                  {name}
+                                                </h6>
+                                                {url && (
+                                                  <a
+                                                    href={url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-blue-600 hover:underline mb-2 block"
+                                                  >
+                                                    {url}
+                                                  </a>
+                                                )}
+                                                {description && (
+                                                  <p className="text-xs text-gray-600">
+                                                    {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })()
+                              ) : (
+                                <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
+                                  <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
+                                    {product.step3Results.raw_response || JSON.stringify(product.step3Results, null, 2) || 'No data available'}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Step 4 */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs text-gray-500">Step 4:</span>
+                            {getStatusBadge(product.step4Status)}
+                            {(product.step4Status === 'running' || product.step4Status === 'processing') ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStopStep(product.id, 4)}
+                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                                title="Stop Step 4"
+                              >
+                                <XCircle className="w-3 h-3" />
+                              </Button>
+                            ) : (product.step4Status === 'completed' || product.step4Status === 'error') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRefreshStep(product.id, 4)}
+                                className="h-6 px-2 text-xs text-gray-500 hover:text-[hsl(var(--dashboard-link-color))]"
+                                title="Re-run Step 4"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </Button>
+                            )}
+                            {product.step4Status === 'running' && product.step4Progress && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600">{product.step4Progress.current}</span>
+                                <span className="text-xs text-gray-400">({product.step4Progress.percentage}%)</span>
                               </div>
+                            )}
+                            {product.step4Status === 'completed' && product.step4Results && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setExpandedStep4(expandedStep4 === product.id ? null : product.id)}
+                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
+                              >
+                                {expandedStep4 === product.id ? (
+                                  <>
+                                    <ChevronUp className="w-3 h-3 mr-1" />
+                                    Hide Results
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="w-3 h-3 mr-1" />
+                                    Show Results
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                            {(product.step4Status === 'pending' || !product.step4Status) && product.step3Status === 'completed' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStartStep4(product.id)}
+                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
+                              >
+                                <Play className="w-3 h-3 mr-1" />
+                                Start Next
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* Expandable Step 4 Results */}
+                          {expandedStep4 === product.id && product.step4Results && (
+                            <div className="ml-6 mt-2">
+                              <div className="mb-3">
+                                <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                  Compliance Updates ({product.step4Results.updates_count || 0})
+                                </h5>
+                              </div>
+                              
+                              {product.step4Results.compliance_updates && Array.isArray(product.step4Results.compliance_updates) && product.step4Results.compliance_updates.length > 0 ? (
+                                <div className="space-y-2">
+                                  {product.step4Results.compliance_updates.map((update: any, idx: number) => {
+                                    const name = update?.element_name || 'Unnamed';
+                                    const updateType = update?.update_type || 'Update';
+                                    const updateDate = update?.update_date || '';
+                                    const updateDesc = update?.update_description || '';
+                                    const sourceUrl = update?.source_url || '';
+                                    
+                                    return (
+                                      <div key={idx} className="bg-dashboard-view-background p-3">
+                                        <div className="flex items-start gap-2">
+                                          <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                                {name}
+                                              </h6>
+                                              <Badge className="bg-orange-100 text-orange-700 text-xs border-0">
+                                                {updateType}
+                                              </Badge>
+                                            </div>
+                                            {updateDate && (
+                                              <p className="text-xs text-gray-500 mb-1">
+                                                Date: {updateDate}
+                                              </p>
+                                            )}
+                                            {updateDesc && (
+                                              <p className="text-xs text-gray-600 mb-2">
+                                                {String(updateDesc).substring(0, 200)}{String(updateDesc).length > 200 ? '...' : ''}
+                                              </p>
+                                            )}
+                                            {sourceUrl && (
+                                              <a
+                                                href={sourceUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-blue-600 hover:underline"
+                                              >
+                                                Source
+                                              </a>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
+                                  <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
+                                    {product.step4Results.raw_response || JSON.stringify(product.step4Results, null, 2) || 'No data available'}
+                                  </pre>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -650,14 +1255,22 @@ export default function Products() {
                     </div>
 
                     <div className="flex gap-2">
-                      {(product.step0Status === 'pending' || product.step1Status === 'pending' || product.step2Status === 'pending') && (
+                      {(
+                        product.step0Status === 'pending' || !product.step0Status || 
+                        product.step1Status === 'pending' || !product.step1Status || 
+                        product.step2Status === 'pending' || !product.step2Status || 
+                        product.step3Status === 'pending' || !product.step3Status || 
+                        product.step4Status === 'pending' || !product.step4Status
+                      ) && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            if (product.step0Status === 'pending') handleStartStep0(product.id);
-                            else if (product.step1Status === 'pending') handleStartStep1(product.id);
-                            else if (product.step2Status === 'pending') handleStartStep2(product.id);
+                            if (product.step0Status === 'pending' || !product.step0Status) handleStartStep0(product.id);
+                            else if (product.step1Status === 'pending' || !product.step1Status) handleStartStep1(product.id);
+                            else if (product.step2Status === 'pending' || !product.step2Status) handleStartStep2(product.id);
+                            else if (product.step3Status === 'pending' || !product.step3Status) handleStartStep3(product.id);
+                            else if (product.step4Status === 'pending' || !product.step4Status) handleStartStep4(product.id);
                           }}
                           className="border-0 bg-blue-50 text-blue-600 hover:bg-blue-100"
                         >

@@ -57,7 +57,7 @@ export const productService = {
 
   // Execute Step 1 (Compliance Assessment)
   async executeStep1(productId: string): Promise<ApiResponse<any>> {
-    const { data } = await api.post(`/api/products/${productId}/step1`);
+    const { data } = await api.post(`/api/products/${productId}/execute-step1`);
     return data;
   },
 
@@ -74,7 +74,25 @@ export const productService = {
 
   // Execute Step 2 (Identify Compliance Elements)
   async executeStep2(productId: string): Promise<ApiResponse<any>> {
-    const { data } = await api.post(`/api/products/${productId}/step2`);
+    const { data } = await api.post(`/api/products/${productId}/execute-step2`);
+    return data;
+  },
+
+  // Execute Step 3 (Generate Compliance Descriptions)
+  async executeStep3(productId: string): Promise<ApiResponse<any>> {
+    const { data } = await api.post(`/api/products/${productId}/execute-step3`);
+    return data;
+  },
+
+  // Execute Step 4 (Track Compliance Updates)
+  async executeStep4(productId: string): Promise<ApiResponse<any>> {
+    const { data} = await api.post(`/api/products/${productId}/execute-step4`);
+    return data;
+  },
+
+  // Stop a running step
+  async stopStep(productId: string, step: 0 | 1 | 2 | 3 | 4): Promise<ApiResponse<any>> {
+    const { data } = await api.post(`/api/products/${productId}/stop-step${step}`);
     return data;
   },
 
