@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import colors from 'tailwindcss/colors';
 
 export default {
     darkMode: ["class"],
@@ -13,6 +14,9 @@ export default {
         mono: ['var(--font-geist-mono)', 'monospace'],
       },
   		colors: {
+        blue: colors.blue,
+        amber: colors.amber,
+        slate: colors.slate,
 
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -64,6 +68,16 @@ export default {
   				border: 'hsl(var(--sidebar-border))',
   				ring: 'hsl(var(--sidebar-ring))'
   			},
+        infobar: {
+  				DEFAULT: 'hsl(var(--infobar-background))',
+  				foreground: 'hsl(var(--infobar-foreground))',
+  				primary: 'hsl(var(--infobar-primary))',
+  				'primary-foreground': 'hsl(var(--infobar-primary-foreground))',
+  				accent: 'hsl(var(--infobar-accent))',
+  				'accent-foreground': 'hsl(var(--infobar-accent-foreground))',
+  				border: 'hsl(var(--infobar-border))',
+  				ring: 'hsl(var(--infobar-ring))'
+        },
         brand: {
           'primary': 'hsl(var(--brand-primary))',
           'primary-foreground': 'hsl(var(--brand-primary-foreground))',
@@ -90,9 +104,13 @@ export default {
         'dashboard-view-background': 'hsl(var(--dashboard-view-background))',
   		},
   		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			lg: '0',
+  			md: '0',
+  			sm: '0',
+  			none: '0'
+  		},
+  		boxShadow: {
+  			none: 'none'
   		},
       height: {
         '14': '3.5rem',
@@ -114,11 +132,21 @@ export default {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
         },
+        'slide-up': {
+          from: { transform: 'translateY(100%)', height: '3rem' },
+          to: { transform: 'translateY(0)', height: 'var(--info-bar-height, 40vh)' },
+        },
+        'slide-down': {
+          from: { transform: 'translateY(0)', height: 'var(--info-bar-height, 40vh)' },
+          to: { transform: 'translateY(100%)', height: '3rem' },
+        },
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
         'pulse-slow': 'pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'slide-up': 'slide-up 0.3s ease-out forwards',
+        'slide-down': 'slide-down 0.3s ease-out forwards',
   		},
       spacing: {
         'sidebar-desktop': '64px',
@@ -129,6 +157,10 @@ export default {
         'sidebar-icon': 'var(--sidebar-width-icon)',
         'sidebar-expanded': 'var(--sidebar-width)',
       },
+      maxHeight: {
+        'info-bar-mobile': '50vh',
+        'info-bar-desktop': '40vh',
+      }
   	}
   },
   plugins: [require("tailwindcss-animate")],

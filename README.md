@@ -26,11 +26,32 @@
 
 ## Design System
 
-Copied from `studio` repo with:
-- Geist Sans & Geist Mono fonts
-- Light theme with Yellow/Gold brand color
-- Responsive sidebar layout
-- Consistent component styling
+Copied from `studio` repo with strict design rules:
+
+### Core Principles
+- ✅ **No rounded corners** - All elements have sharp 90-degree corners
+- ✅ **No borders on cards** - Use background contrast instead
+- ✅ **Consistent colors** - HSL variables from Studio design system
+- ✅ **Geist fonts** - Sans for text, Mono for numbers/code
+
+### Design Files
+- **[STYLING_TEMPLATE.md](./STYLING_TEMPLATE.md)** - Copy-paste classes for all UI elements
+- **[DESIGN_RULES.md](./DESIGN_RULES.md)** - Detailed design guidelines
+- **[.cursorrules](./.cursorrules)** - AI assistant rules for consistent styling
+
+### Quick Start Classes
+```tsx
+// Page container
+<div className="min-h-screen bg-dashboard-view-background p-8">
+  
+// Card (no borders, no rounded corners)
+<Card className="bg-white border-0">
+  
+// Primary button
+<Button className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white">
+```
+
+**Reference Implementation:** See `src/pages/Dashboard.tsx` for complete example.
 
 ## Getting Started
 
@@ -59,16 +80,35 @@ npm run dev
 
 The app will open at `http://localhost:5173`
 
+### Auth0 Setup
+
+See **[AUTH0_SETUP.md](./AUTH0_SETUP.md)** for complete Auth0 configuration guide including:
+- Creating an Auth0 application
+- Configuring allowed URLs
+- Setting up user metadata
+- Customizing the login page
+- Production deployment steps
+
 ### Environment Variables
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000
+# Auth0 Configuration
 VITE_AUTH0_DOMAIN=your-domain.auth0.com
 VITE_AUTH0_CLIENT_ID=your-client-id
-VITE_AUTH0_AUDIENCE=your-api-audience
+VITE_AUTH0_REDIRECT_URI=http://localhost:5173
+VITE_AUTH0_AUDIENCE=https://api.certean-monitor.com
+
+# API Configuration
+VITE_API_BASE_URL=http://localhost:8000
+
+# Stripe (Optional)
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
+
+# Socket.io (Optional)
 VITE_SOCKET_URL=ws://localhost:8000
 ```
+
+**See [AUTH0_SETUP.md](./AUTH0_SETUP.md) for detailed Auth0 configuration instructions.**
 
 ## Project Structure
 
@@ -145,11 +185,31 @@ npm run preview
 
 ## Architecture
 
-### Multi-Tenant Model
-- **One deployment** serves all clients
-- **Auth0** provides `client_id` in JWT
-- **Backend** switches to `c_monitor_{client_id}` database per request
-- **Shared compliance DB** (`c_monitor_shared`) benefits all clients
+### Multi-Tenant Model with Shared Compliance Knowledge Base
+
+**Database Structure:**
+- **Client Databases** (`c_monitor_{client_id}`) - Store products and references only
+- **Shared Database** (`c_monitor_shared`) - Store ALL compliance elements and updates
+
+**Key Principles:**
+1. ✅ **Compliance elements** → Stored ONLY in shared DB
+2. ✅ **Compliance updates** → Stored ONLY in shared DB
+3. ✅ **Products** → Stored in client DBs with **ID references** to shared compliance elements
+4. ✅ **No duplication** → Compliance data lives in ONE place (shared DB)
+
+**Data Flow:**
+- New product added → System identifies compliance requirements
+- New compliance elements → Added to shared DB, referenced by ID from client DB
+- Compliance updates → Updated in shared DB, automatically affects all referencing products
+- Queries → Join client products with shared compliance elements via IDs
+
+**Benefits:**
+- Knowledge sharing across all clients
+- Single source of truth for compliance data
+- Easy global updates to compliance requirements
+- Client privacy maintained (products stay separate)
+
+**See:** [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed documentation
 
 ### Real-time Updates
 - **Socket.io** connection per client

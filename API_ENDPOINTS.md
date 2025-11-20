@@ -8,6 +8,21 @@ This document specifies the API endpoints that the **certean-monitor** frontend 
 http://localhost:8000
 ```
 
+## ⚠️ Database Architecture (CRITICAL)
+
+**Compliance Data Storage:**
+- ✅ **Compliance elements** → Stored ONLY in `c_monitor_shared` database
+- ✅ **Compliance updates** → Stored ONLY in `c_monitor_shared` database
+- ✅ **Products** → Stored in `c_monitor_{client_id}` with **ID references** to shared compliance elements
+- ❌ **NEVER** duplicate compliance data in client databases
+
+**API Implementation Pattern:**
+1. Products API → Query `c_monitor_{client_id}` for products
+2. Join with shared DB → Use product's `compliance_element_ids` to fetch from `c_monitor_shared`
+3. Return combined data to frontend
+
+**See:** [ARCHITECTURE.md](./ARCHITECTURE.md) for complete details.
+
 ## Authentication
 
 All requests (except login) must include:

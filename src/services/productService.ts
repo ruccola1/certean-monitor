@@ -35,8 +35,13 @@ export const productService = {
 
   // Execute Step 0 (Product Decomposition)
   async executeStep0(productId: string): Promise<ApiResponse<any>> {
-    const { data } = await api.post(`/api/products/${productId}/step0`);
+    const { data } = await api.post(`/api/products/${productId}/execute-step0`);
     return data;
+  },
+
+  // Alias for backward compatibility
+  runStep0(productId: string): Promise<ApiResponse<any>> {
+    return this.executeStep0(productId);
   },
 
   // Approve Step 0 results

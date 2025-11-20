@@ -1,0 +1,221 @@
+# Certean Monitor - AI Assistant Rules
+
+## MANDATORY: All Code Must Follow These Rules
+
+### Design System Rules
+
+1. **NO ROUNDED CORNERS** - All elements MUST have sharp 90-degree corners
+   - Set `border-radius: 0` everywhere
+   - Use `border-0` class or explicit `rounded-0`
+   - Global CSS enforces: `* { border-radius: 0 !important; }`
+
+2. **NO DROP SHADOWS** - No shadows of any kind
+   - Set `box-shadow: none` everywhere
+   - Never use `shadow-*` or drop-shadow classes
+   - Global CSS enforces: `* { box-shadow: none !important; }`
+   - Flat design is mandatory
+
+3. **NO BORDERS ON CARDS** - Cards should NOT have visible borders
+   - Always use `border-0` on Card components
+   - Use background color contrast (white on light gray) for separation
+   - Never use `border` classes on containers
+
+3. **CONSISTENT STYLING FROM STUDIO REPO** - Match the Studio design system exactly
+   - Source: `/Users/nicolaszander/Desktop/certean/dev/studio`
+   - Colors from Studio's globals.css
+   - Typography using Geist Sans and Geist Mono fonts
+
+### Page Layout Requirements
+
+Every page MUST use this exact structure:
+
+```tsx
+export default function PageName() {
+  return (
+    <div className="min-h-screen bg-dashboard-view-background p-8">
+      <div className="max-w-7xl space-y-8">
+        <div>
+          <h1 className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Title</h1>
+          <p className="text-[15px] text-[hsl(var(--dashboard-link-color))] mt-2">Description</p>
+        </div>
+        {/* Content */}
+      </div>
+    </div>
+  );
+}
+```
+
+### Required Classes Reference
+
+**Page Container:**
+- `className="min-h-screen bg-dashboard-view-background p-8"`
+
+**Content Wrapper:**
+- `className="max-w-7xl space-y-8"`
+
+**Cards:**
+- `className="bg-white border-0"`
+
+**Card Titles:**
+- `className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]"`
+
+**Card Descriptions:**
+- `className="text-sm text-gray-500"`
+
+**Page Titles (H1):**
+- `className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]"`
+
+**Numbers/Metrics:**
+- `className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono"`
+
+**Primary Buttons:**
+- `className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white"`
+
+**Secondary Text:**
+- `className="text-gray-500"`
+
+### Color System
+
+- **Page Background:** `bg-dashboard-view-background` (light gray #EEEFF0)
+- **Card Background:** `bg-white` (#FFFFFF)
+- **Primary Text:** `text-[hsl(var(--dashboard-link-color))]` (greyish-blue)
+- **Secondary Text:** `text-gray-500`
+- **No Borders:** `border-0` (always)
+
+### Typography
+
+- **Sans Serif:** Geist Sans (via CDN)
+- **Monospace:** Geist Mono (via CDN)
+- **Numbers/Metrics:** Always use `font-mono` class
+
+### What NOT to Do
+
+❌ **Never use these:**
+- `rounded-*` classes (except `rounded-0`)
+- `shadow-*` classes (any shadows)
+- `drop-shadow-*` classes
+- `border` on cards/containers
+- `bg-gray-*` for page backgrounds
+- Custom colors that don't match the design system
+- Round corners anywhere
+- Drop shadows anywhere
+
+✅ **Always use:**
+- `border-0` on all cards
+- `bg-dashboard-view-background` for pages
+- `bg-white` for cards
+- HSL color variables from the design system
+- Sharp, clean, professional aesthetic
+
+### Before Creating/Modifying Components
+
+1. Check `STYLING_TEMPLATE.md` for copy-paste classes
+2. Check `DESIGN_RULES.md` for detailed guidelines
+3. Reference `src/pages/Dashboard.tsx` as working example
+4. Verify no rounded corners
+5. Verify no borders on cards
+6. Verify correct colors match Studio
+
+### File References
+
+- **Styling Template:** `STYLING_TEMPLATE.md` - Copy-paste classes for all elements
+- **Design Rules:** `DESIGN_RULES.md` - Detailed design principles
+- **Example Page:** `src/pages/Dashboard.tsx` - Complete working example
+- **Global Styles:** `src/styles/globals.css` - CSS variables and global rules
+- **Tailwind Config:** `tailwind.config.ts` - Border radius and color configuration
+
+### NO EMOJIS EVER
+
+**CRITICAL RULE: NEVER use emojis anywhere in the codebase.**
+- ❌ No emojis in UI text
+- ❌ No emojis in error messages
+- ❌ No emojis in status messages
+- ❌ No emojis in progress updates
+- ❌ No emojis in logs (backend can use them, but not frontend-facing text)
+- ✅ Use clear text descriptions only
+
+### Quality Checklist
+
+Before marking any UI work as complete, verify:
+
+- [ ] No rounded corners anywhere
+- [ ] No drop shadows anywhere (no `shadow-*` classes)
+- [ ] No borders on cards (use `border-0`)
+- [ ] Page uses `bg-dashboard-view-background`
+- [ ] Cards use `bg-white border-0`
+- [ ] All headings use correct color variables
+- [ ] Numbers use `font-mono` class
+- [ ] Layout follows max-w-7xl pattern
+- [ ] Colors match Studio design system
+- [ ] Typography uses Geist fonts
+- [ ] Spacing is consistent
+- [ ] Flat design maintained (no depth effects)
+
+### When User Requests New Pages/Components
+
+1. Always start with the template from `STYLING_TEMPLATE.md`
+2. Apply all required classes from these rules
+3. Ensure sharp corners (no border-radius)
+4. Ensure no borders (use border-0)
+5. Match Studio's color system exactly
+6. Test that styling is consistent with Dashboard.tsx
+
+---
+
+**IMPORTANT:** These rules are MANDATORY. Every page, component, and UI element must follow them without exception. Do not deviate from this design system.
+
+---
+
+## API Integration Rules
+
+### CRITICAL: Never Create Fake/Simulated API Solutions
+
+**MANDATORY RULE:** When implementing backend functionality for Steps 1, 2, 3, 4, 5, etc.:
+
+❌ **NEVER DO THIS:**
+- Create fake/simulated AI responses
+- Create dummy data endpoints
+- Sleep for X seconds and return hardcoded results
+- Generate "sample" compliance data
+- Mock AI processing with placeholders
+
+✅ **ALWAYS DO THIS:**
+- Use the REAL certean-ai API endpoints
+- Use the REAL pipeline system
+- Use the REAL Tavily searches
+- Use the REAL AI providers (OpenAI, Claude, Perplexity)
+- Use the REAL prompts from MongoDB
+- Use the REAL workflow orchestration
+
+### Integration Approach
+
+**For All Steps (1, 2, 3, 4, 5+):**
+1. Check what REAL endpoints exist in `certean-ai` backend
+2. Read the actual implementation and understand the flow
+3. Use the existing pipeline engine (`/backend/workflows/pipeline_engine.py`)
+4. Call the real AI services with real prompts
+5. Store and display ACTUAL results
+
+**Example:**
+```python
+# ❌ WRONG - Fake simulation
+async def execute_step1():
+    await asyncio.sleep(8)
+    return {"fake": "data"}
+
+# ✅ CORRECT - Use real API
+async def execute_step1():
+    # Call the real certean-ai pipeline
+    # With real Tavily searches
+    # With real AI analysis
+    # Return actual results
+```
+
+### File Reference
+
+- **Real Pipeline System:** `/Users/nicolaszander/Desktop/certean/dev/certean-ai/backend/workflows/pipeline_engine.py`
+- **Real Pipeline Routes:** `/Users/nicolaszander/Desktop/certean/dev/certean-ai/backend/api/pipeline_routes.py`
+- **Real Services:** Check `/Users/nicolaszander/Desktop/certean/dev/certean-ai/backend/services/`
+
+**Before implementing ANY step: Research how certean-ai ACTUALLY does it, then integrate with the real system.**
+

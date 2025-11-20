@@ -85,7 +85,7 @@ export default function Sidebar() {
                   <Link
                     to={item.href}
                     className={cn(
-                      "flex items-center justify-center w-10 h-10 rounded-md transition-colors",
+                      "flex items-center justify-center w-10 h-10 transition-colors",
                       isActive
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
                         : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
