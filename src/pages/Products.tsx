@@ -579,8 +579,8 @@ export default function Products() {
 
                       {/* Pipeline Status - Horizontal Step Boxes */}
                       <div className="mt-4 pt-4 border-t border-gray-100">
-                        {/* Step Boxes - Horizontal Layout - Only showing visible steps: 0, 2, 4 */}
-                        <div className="grid grid-cols-3 gap-2 mb-4">
+                        {/* Step Boxes - Horizontal Layout - All 5 steps (1 & 3 are status-only markers) */}
+                        <div className="grid grid-cols-5 gap-2 mb-4">
                           {/* Step 0 Box - Product Details */}
                           <button
                             onClick={() => {
@@ -637,6 +637,17 @@ export default function Products() {
                             )}
                           </button>
 
+                          {/* Step 1 Marker - Research Sources (Status Only) */}
+                          <div className="border-0 p-4 bg-gray-100">
+                            <div className="flex flex-col items-center justify-center h-full">
+                              <span className="text-xs font-semibold text-gray-500 mb-2">Research Sources</span>
+                              {getStatusBadge(product.step1Status)}
+                              {(product.step1Status === 'running' || product.step1Status === 'processing') && (
+                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
+                              )}
+                            </div>
+                          </div>
+
                           {/* Step 2 Box - Compliance Elements */}
                           <button
                             onClick={() => {
@@ -692,6 +703,17 @@ export default function Products() {
                               </div>
                             )}
                           </button>
+
+                          {/* Step 3 Marker - Element Mapping (Status Only) */}
+                          <div className="border-0 p-4 bg-gray-100">
+                            <div className="flex flex-col items-center justify-center h-full">
+                              <span className="text-xs font-semibold text-gray-500 mb-2">Element Mapping</span>
+                              {getStatusBadge(product.step3Status)}
+                              {(product.step3Status === 'running' || product.step3Status === 'processing') && (
+                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
+                              )}
+                            </div>
+                          </div>
 
                           {/* Step 4 Box - Compliance Updates */}
                           <button
@@ -913,7 +935,7 @@ export default function Products() {
                             </div>
                           )}
 
-                        {/* Step 1 runs in the background - no display */}
+                        {/* Step 1 - Shown as status marker only, not expandable */}
 
                         {/* Expandable Step 2 Results */}
                           {expandedStep?.productId === product.id && expandedStep?.stepNumber === 2 && product.step2Results && (
@@ -1028,7 +1050,7 @@ export default function Products() {
                             </div>
                           )}
 
-                        {/* Step 3 runs in the background - no display */}
+                        {/* Step 3 - Shown as status marker only, not expandable */}
 
                         {/* Expandable Step 4 Results */}
                           {expandedStep?.productId === product.id && expandedStep?.stepNumber === 4 && product.step4Results && (
