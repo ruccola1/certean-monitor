@@ -202,7 +202,8 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                 className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
               />
               <p className="text-xs text-gray-500">
-                Enter comma-separated market codes (e.g., EU, US, UK, SE)
+                Enter comma-separated market codes (e.g., EU, US, UK, SE). 
+                <span className="font-semibold"> Free: 1 market, Manager: 3 markets, Expert/Enterprise: Unlimited</span>
               </p>
             </div>
 

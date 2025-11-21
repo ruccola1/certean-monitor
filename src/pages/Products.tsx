@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useEffect, useState, useRef } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Trash2, ChevronRight, Play, ChevronDown, ChevronUp, Package, AlertTriangle, CheckCircle2, FileCheck, RefreshCw, XCircle } from 'lucide-react';
+import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, RefreshCw, XCircle, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
+import { useNotificationContext } from '@/contexts/NotificationContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -112,17 +113,20 @@ interface Step3Results {
 
 interface Step4Results {
   compliance_updates: Array<{
-    element_name?: string;
-    update_type?: string;
+    regulation?: string;
+    title?: string;
     update_date?: string;
-    update_description?: string;
-    source_url?: string;
+    type?: string;
+    description?: string;
+    impact?: string;
+    compliance_deadline?: string;
+    validity?: string;
     [key: string]: any;
   }>;
   updates_count: number;
   model_used: any;
   ai_count: number;
-  target_markets: string[];
+  target_markets?: string[];
   raw_response?: string;
 }
 
@@ -177,16 +181,22 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-  const [expandedStep0, setExpandedStep0] = useState<string | null>(null);
-  const [expandedStep1, setExpandedStep1] = useState<string | null>(null);
-  const [expandedStep2, setExpandedStep2] = useState<string | null>(null);
-  const [expandedStep3, setExpandedStep3] = useState<string | null>(null);
-  const [expandedStep4, setExpandedStep4] = useState<string | null>(null);
+  // Single state to track which step is expanded (only one at a time)
+  const [expandedStep, setExpandedStep] = useState<{ productId: string; stepNumber: number } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; productId: string; productName: string }>({
     open: false,
     productId: '',
     productName: ''
   });
+  
+  const { addNotification } = useNotificationContext();
+  const previousStatusesRef = useRef<Map<string, {
+    step0: string | undefined;
+    step1: string | undefined;
+    step2: string | undefined;
+    step3: string | undefined;
+    step4: string | undefined;
+  }>>(new Map());
 
   const fetchProducts = async () => {
     try {
@@ -237,6 +247,70 @@ export default function Products() {
       window.removeEventListener('focus', fetchProducts);
     };
   }, []);
+
+  // Detect status changes and send notifications
+  useEffect(() => {
+    products.forEach(product => {
+      const productId = product.id;
+      const previousStatuses = previousStatusesRef.current.get(productId);
+      
+      if (!previousStatuses) {
+        // First time seeing this product, store its current statuses
+        previousStatusesRef.current.set(productId, {
+          step0: product.step0Status,
+          step1: product.step1Status,
+          step2: product.step2Status,
+          step3: product.step3Status,
+          step4: product.step4Status,
+        });
+        return;
+      }
+      
+      // Check each step for status changes
+      const steps = [
+        { num: 0, current: product.step0Status, previous: previousStatuses.step0, name: 'Technical Decomposition' },
+        { num: 1, current: product.step1Status, previous: previousStatuses.step1, name: 'Compliance Assessment' },
+        { num: 2, current: product.step2Status, previous: previousStatuses.step2, name: 'Identify Elements' },
+        { num: 3, current: product.step3Status, previous: previousStatuses.step3, name: 'Compliance Descriptions' },
+        { num: 4, current: product.step4Status, previous: previousStatuses.step4, name: 'Track Updates' },
+      ];
+      
+      steps.forEach(step => {
+        // Detect completed steps
+        if (step.previous === 'running' && step.current === 'completed') {
+          addNotification({
+            type: 'success',
+            title: `Step ${step.num} Completed`,
+            message: `${product.name}: ${step.name} finished successfully`,
+            productId: product.id,
+            productName: product.name,
+            step: step.num,
+          });
+        }
+        
+        // Detect failed steps
+        if (step.previous === 'running' && step.current === 'error') {
+          addNotification({
+            type: 'error',
+            title: `Step ${step.num} Failed`,
+            message: `${product.name}: ${step.name} encountered an error`,
+            productId: product.id,
+            productName: product.name,
+            step: step.num,
+          });
+        }
+      });
+      
+      // Update stored statuses
+      previousStatusesRef.current.set(productId, {
+        step0: product.step0Status,
+        step1: product.step1Status,
+        step2: product.step2Status,
+        step3: product.step3Status,
+        step4: product.step4Status,
+      });
+    });
+  }, [products, addNotification]);
 
   const handleProductAdded = () => {
     setShowAddDialog(false);
@@ -463,10 +537,29 @@ export default function Products() {
                           {product.name}
                         </h3>
                         {getStatusBadge(product.status)}
+                        {product.step4Status === 'completed' ? (
+                          <Badge className="bg-green-100 text-green-700 border-0 flex items-center gap-1">
+                            <Eye className="w-3 h-3" />
+                            Monitored
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="border-0 flex items-center gap-1">
+                            <EyeOff className="w-3 h-3" />
+                            Not Monitored
+                          </Badge>
+                        )}
                       </div>
                       
                       <p className="text-sm text-gray-600 mb-4">
-                        {product.description}
+                        {(() => {
+                          // Remove product name prefix from description if present
+                          const desc = product.description || '';
+                          const namePrefix = `${product.name}: `;
+                          if (desc.startsWith(namePrefix)) {
+                            return desc.substring(namePrefix.length);
+                          }
+                          return desc;
+                        })()}
                       </p>
 
                       <div className="flex items-center gap-6 text-sm">
@@ -484,126 +577,242 @@ export default function Products() {
                         </div>
                       </div>
 
-                      {/* Pipeline Status */}
-                      <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
-                        {/* Step 0 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs text-gray-500">Step 0:</span>
-                            {getStatusBadge(product.step0Status)}
-                            {(product.step0Status === 'running' || product.step0Status === 'processing') ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStopStep(product.id, 0)}
-                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
-                                title="Stop Step 0"
-                              >
-                                <XCircle className="w-3 h-3" />
-                              </Button>
-                            ) : (product.step0Status === 'completed' || product.step0Status === 'error') && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRefreshStep(product.id, 0)}
-                                className="h-6 px-2 text-xs text-gray-500 hover:text-[hsl(var(--dashboard-link-color))]"
-                                title="Re-run Step 0"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                              </Button>
-                            )}
-                            {/* Real-time progress display */}
-                            {product.step0Status === 'running' && product.step0Progress && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600">{product.step0Progress.current}</span>
-                                <span className="text-xs text-gray-400">({product.step0Progress.percentage}%)</span>
+                      {/* Pipeline Status - Horizontal Step Boxes */}
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        {/* Step Boxes - Horizontal Layout - Only showing visible steps: 0, 2, 4 */}
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                          {/* Step 0 Box - Product Details */}
+                          <button
+                            onClick={() => {
+                              if (expandedStep?.productId === product.id && expandedStep?.stepNumber === 0) {
+                                setExpandedStep(null);
+                              } else {
+                                setExpandedStep({ productId: product.id, stepNumber: 0 });
+                              }
+                            }}
+                            className={`border-0 p-4 transition-colors text-left relative ${
+                              expandedStep?.productId === product.id && expandedStep?.stepNumber === 0
+                                ? 'bg-gray-200'
+                                : 'bg-white hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex flex-col items-center justify-center h-full">
+                              <span className="text-xs font-semibold text-gray-700 mb-2">Product Details</span>
+                              {getStatusBadge(product.step0Status)}
+                              {(product.step0Status === 'running' || product.step0Status === 'processing') && (
+                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
+                              )}
+                            </div>
+                            {(product.step0Status === 'completed' || product.step0Status === 'error') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRefreshStep(product.id, 0);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Re-run Product Details"
+                                >
+                                  <RefreshCw className="w-3 h-3 text-gray-500" />
+                                </Button>
                               </div>
                             )}
-                            {product.step0Status === 'completed' && product.step0Results && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setExpandedStep0(expandedStep0 === product.id ? null : product.id)}
-                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
-                              >
-                                {expandedStep0 === product.id ? (
-                                  <>
-                                    <ChevronUp className="w-3 h-3 mr-1" />
-                                    Hide Results
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="w-3 h-3 mr-1" />
-                                    Show Results
-                                  </>
-                                )}
-                              </Button>
+                            {(product.step0Status === 'running' || product.step0Status === 'processing') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStopStep(product.id, 0);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Stop Product Details"
+                                >
+                                  <XCircle className="w-3 h-3 text-red-600" />
+                                </Button>
+                              </div>
                             )}
-                          </div>
+                          </button>
+
+                          {/* Step 2 Box - Compliance Elements */}
+                          <button
+                            onClick={() => {
+                              if (expandedStep?.productId === product.id && expandedStep?.stepNumber === 2) {
+                                setExpandedStep(null);
+                              } else {
+                                setExpandedStep({ productId: product.id, stepNumber: 2 });
+                              }
+                            }}
+                            className={`border-0 p-4 transition-colors text-left relative ${
+                              expandedStep?.productId === product.id && expandedStep?.stepNumber === 2
+                                ? 'bg-gray-200'
+                                : 'bg-white hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex flex-col items-center justify-center h-full">
+                              <span className="text-xs font-semibold text-gray-700 mb-2">Compliance Elements</span>
+                              {getStatusBadge(product.step2Status)}
+                              {(product.step2Status === 'running' || product.step2Status === 'processing') && (
+                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
+                              )}
+                            </div>
+                            {(product.step2Status === 'completed' || product.step2Status === 'error') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRefreshStep(product.id, 2);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Re-run Compliance Elements"
+                                >
+                                  <RefreshCw className="w-3 h-3 text-gray-500" />
+                                </Button>
+                              </div>
+                            )}
+                            {(product.step2Status === 'running' || product.step2Status === 'processing') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStopStep(product.id, 2);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Stop Compliance Elements"
+                                >
+                                  <XCircle className="w-3 h-3 text-red-600" />
+                                </Button>
+                              </div>
+                            )}
+                          </button>
+
+                          {/* Step 4 Box - Compliance Updates */}
+                          <button
+                            onClick={() => {
+                              if (expandedStep?.productId === product.id && expandedStep?.stepNumber === 4) {
+                                setExpandedStep(null);
+                              } else {
+                                setExpandedStep({ productId: product.id, stepNumber: 4 });
+                              }
+                            }}
+                            className={`border-0 p-4 transition-colors text-left relative ${
+                              expandedStep?.productId === product.id && expandedStep?.stepNumber === 4
+                                ? 'bg-gray-200'
+                                : 'bg-white hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex flex-col items-center justify-center h-full">
+                              <span className="text-xs font-semibold text-gray-700 mb-2">Compliance Updates</span>
+                              {getStatusBadge(product.step4Status)}
+                              {(product.step4Status === 'running' || product.step4Status === 'processing') && (
+                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
+                              )}
+                            </div>
+                            {(product.step4Status === 'completed' || product.step4Status === 'error') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRefreshStep(product.id, 4);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Re-run Compliance Updates"
+                                >
+                                  <RefreshCw className="w-3 h-3 text-gray-500" />
+                                </Button>
+                              </div>
+                            )}
+                            {(product.step4Status === 'running' || product.step4Status === 'processing') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStopStep(product.id, 4);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Stop Compliance Updates"
+                                >
+                                  <XCircle className="w-3 h-3 text-red-600" />
+                                </Button>
+                              </div>
+                            )}
+                          </button>
+                        </div>
                           
                           {/* Expandable Step 0 Results */}
-                          {expandedStep0 === product.id && product.step0Results && (
+                          {expandedStep?.productId === product.id && expandedStep?.stepNumber === 0 && product.step0Results && (
                             <div className="ml-6 mt-2 space-y-4">
-                              {/* Parent: Product Overview */}
+                              {/* Categories and Materials at the TOP */}
+                              <div className="space-y-3">
+                                {/* Categories - First */}
+                                {product.step0Results.categories && product.step0Results.categories.length > 0 && (
+                                  <div>
+                                    <h6 className="text-xs font-semibold text-gray-600 mb-2">Categories</h6>
+                                    <div className="flex flex-wrap gap-2">
+                                      {product.step0Results.categories.map((category: string, idx: number) => (
+                                        <Badge 
+                                          key={idx} 
+                                          className="bg-blue-100 text-blue-700 border-0 flex items-center gap-1 pr-1"
+                                        >
+                                          {category}
+                                          <button
+                                            onClick={() => handleRemoveCategory(product.id, category)}
+                                            className="ml-1 hover:bg-blue-200 p-0.5"
+                                            title="Remove category"
+                                          >
+                                            ✕
+                                          </button>
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Materials - Second */}
+                                {product.step0Results.materials && product.step0Results.materials.length > 0 && (
+                                  <div>
+                                    <h6 className="text-xs font-semibold text-gray-600 mb-2">Materials</h6>
+                                    <div className="flex flex-wrap gap-2">
+                                      {product.step0Results.materials.map((material: string, idx: number) => (
+                                        <Badge 
+                                          key={idx} 
+                                          className="bg-purple-100 text-purple-700 border-0 flex items-center gap-1 pr-1"
+                                        >
+                                          {material}
+                                          <button
+                                            onClick={() => handleRemoveMaterial(product.id, material)}
+                                            className="ml-1 hover:bg-purple-200 p-0.5"
+                                            title="Remove material"
+                                          >
+                                            ✕
+                                          </button>
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Product Overview */}
                               <div>
                                 <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
                                   Product Overview
                                 </h5>
-                                <div className="bg-dashboard-view-background p-4 space-y-4">
-                                  {/* Categories - First */}
-                                  {product.step0Results.categories && product.step0Results.categories.length > 0 && (
-                                    <div>
-                                      <h6 className="text-xs font-semibold text-gray-600 mb-2">Categories</h6>
-                                      <div className="flex flex-wrap gap-2">
-                                        {product.step0Results.categories.map((category: string, idx: number) => (
-                                          <Badge 
-                                            key={idx} 
-                                            className="bg-blue-100 text-blue-700 border-0 flex items-center gap-1 pr-1"
-                                          >
-                                            {category}
-                                            <button
-                                              onClick={() => handleRemoveCategory(product.id, category)}
-                                              className="ml-1 hover:bg-blue-200 rounded-full p-0.5"
-                                              title="Remove category"
-                                            >
-                                              ✕
-                                            </button>
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                  
-                                  {/* Materials - Second */}
-                                  {product.step0Results.materials && product.step0Results.materials.length > 0 && (
-                                    <div>
-                                      <h6 className="text-xs font-semibold text-gray-600 mb-2">Materials</h6>
-                                      <div className="flex flex-wrap gap-2">
-                                        {product.step0Results.materials.map((material: string, idx: number) => (
-                                          <Badge 
-                                            key={idx} 
-                                            className="bg-purple-100 text-purple-700 border-0 flex items-center gap-1 pr-1"
-                                          >
-                                            {material}
-                                            <button
-                                              onClick={() => handleRemoveMaterial(product.id, material)}
-                                              className="ml-1 hover:bg-purple-200 rounded-full p-0.5"
-                                              title="Remove material"
-                                            >
-                                              ✕
-                                            </button>
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                  
-                                  {/* Product Overview Text - Third */}
-                                  <div>
-                                    <p className="text-xs text-gray-700 whitespace-pre-wrap">
-                                      {product.step0Results.product_overview || product.description}
-                                    </p>
-                                  </div>
+                                <div className="bg-dashboard-view-background p-4">
+                                  <p className="text-xs text-gray-700 whitespace-pre-wrap">
+                                    {product.step0Results.product_overview || product.description}
+                                  </p>
                                 </div>
                               </div>
 
@@ -688,150 +897,26 @@ export default function Products() {
                               )}
                               
                               {/* Fallback: Show raw text if no components */}
-                              {!product.components && product.step0Results.product_decomposition && (
+                              {/* Always show full product decomposition if available */}
+                              {(product.step0Results?.product_decomposition || product.step0Payload?.product_decomposition) && (
                                 <div>
                                   <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                    Product Decomposition
+                                    Complete Technical Product Decomposition
                                   </h5>
-                                  <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
-                                    <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
-                                      {product.step0Results.product_decomposition}
+                                  <div className="bg-dashboard-view-background p-4 max-h-[600px] overflow-y-auto">
+                                    <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
+                                      {product.step0Results?.product_decomposition || product.step0Payload?.product_decomposition}
                                     </pre>
                                   </div>
                                 </div>
                               )}
                             </div>
                           )}
-                        </div>
 
-                        {/* Step 1 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs text-gray-500">Step 1:</span>
-                            {getStatusBadge(product.step1Status)}
-                            {(product.step1Status === 'running' || product.step1Status === 'processing') ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStopStep(product.id, 1)}
-                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
-                                title="Stop Step 1"
-                              >
-                                <XCircle className="w-3 h-3" />
-                              </Button>
-                            ) : (product.step1Status === 'completed' || product.step1Status === 'error') && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRefreshStep(product.id, 1)}
-                                className="h-6 px-2 text-xs text-gray-500 hover:text-[hsl(var(--dashboard-link-color))]"
-                                title="Re-run Step 1"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                              </Button>
-                            )}
-                            {product.step1Status === 'running' && product.step1Progress && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600">{product.step1Progress.current}</span>
-                                <span className="text-xs text-gray-400">({product.step1Progress.percentage}%)</span>
-                              </div>
-                            )}
-                            {product.step1Status === 'completed' && product.step1Results && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setExpandedStep1(expandedStep1 === product.id ? null : product.id)}
-                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
-                              >
-                                {expandedStep1 === product.id ? (
-                                  <>
-                                    <ChevronUp className="w-3 h-3 mr-1" />
-                                    Hide Results
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="w-3 h-3 mr-1" />
-                                    Show Results
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                          </div>
+                        {/* Step 1 runs in the background - no display */}
 
-                          {/* Expandable Step 1 Results */}
-                          {expandedStep1 === product.id && product.step1Results && (
-                            <div className="ml-6 mt-2">
-                              <div className="mb-3">
-                                <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                  Compliance Assessment
-                                </h5>
-                              </div>
-                              <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
-                                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
-                                  {product.step1Results.compliance_assessment || 'No assessment available'}
-                                </pre>
-                              </div>
-                              
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Step 2 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs text-gray-500">Step 2:</span>
-                            {getStatusBadge(product.step2Status)}
-                            {(product.step2Status === 'running' || product.step2Status === 'processing') ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStopStep(product.id, 2)}
-                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
-                                title="Stop Step 2"
-                              >
-                                <XCircle className="w-3 h-3" />
-                              </Button>
-                            ) : (product.step2Status === 'completed' || product.step2Status === 'error') && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRefreshStep(product.id, 2)}
-                                className="h-6 px-2 text-xs text-gray-500 hover:text-[hsl(var(--dashboard-link-color))]"
-                                title="Re-run Step 2"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                              </Button>
-                            )}
-                            {product.step2Status === 'running' && product.step2Progress && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600">{product.step2Progress.current}</span>
-                                <span className="text-xs text-gray-400">({product.step2Progress.percentage}%)</span>
-                              </div>
-                            )}
-                            {product.step2Status === 'completed' && product.step2Results && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setExpandedStep2(expandedStep2 === product.id ? null : product.id)}
-                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
-                              >
-                                {expandedStep2 === product.id ? (
-                                  <>
-                                    <ChevronUp className="w-3 h-3 mr-1" />
-                                    Hide Results
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="w-3 h-3 mr-1" />
-                                    Show Results
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Expandable Step 2 Results */}
-                          {expandedStep2 === product.id && product.step2Results && (
+                        {/* Expandable Step 2 Results */}
+                          {expandedStep?.productId === product.id && expandedStep?.stepNumber === 2 && product.step2Results && (
                             <div className="ml-6 mt-2">
                               <div className="mb-3">
                                 <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
@@ -841,54 +926,97 @@ export default function Products() {
                               
                               {/* Display as structured list if we have parsed elements */}
                               {product.step2Results.compliance_elements && Array.isArray(product.step2Results.compliance_elements) && product.step2Results.compliance_elements.length > 0 ? (
-                                <div className="space-y-2">
-                                  {product.step2Results.compliance_elements.map((element: any, idx: number) => {
-                                    const designation = element?.element_designation || element?.designation || element?.name || 'Unnamed';
-                                    const type = element?.element_type || element?.type || 'Unknown';
-                                    const description = element?.element_description_long || element?.description || '';
-                                    const countries = element?.element_countries || element?.countries || [];
+                                (() => {
+                                  // Group elements by normalized type
+                                  const grouped = product.step2Results.compliance_elements.reduce((acc: any, element: any) => {
+                                    const rawType = (element?.element_type || element?.type || 'other').toLowerCase();
+                                    let category = 'legislation';
                                     
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className="bg-dashboard-view-background p-3"
-                                      >
-                                        <div className="flex items-start gap-2">
-                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
-                                                {designation}
-                                              </h6>
-                                            </div>
-                                            <div className="text-xs mb-2">
-                                              <Badge className="bg-gray-100 text-gray-700 text-xs border-0">
-                                                {type}
-                                              </Badge>
-                                            </div>
-                                            {description && (
-                                              <p className="text-xs text-gray-600 mb-2">
-                                                {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
-                                              </p>
-                                            )}
-                                            {Array.isArray(countries) && countries.length > 0 && (
-                                              <div className="flex flex-wrap gap-1">
-                                                {countries.map((country: any, cidx: number) => (
-                                                  <Badge
-                                                    key={cidx}
-                                                    className="bg-blue-50 text-blue-700 text-xs border-0"
-                                                  >
-                                                    {String(country)}
-                                                  </Badge>
-                                                ))}
+                                    // Normalize type to one of three categories
+                                    if (rawType.includes('standard') || rawType === 'standard') {
+                                      category = 'standard';
+                                    } else if (rawType.includes('marking') || rawType === 'marking') {
+                                      category = 'marking';
+                                    } else if (rawType.includes('regulation') || rawType.includes('directive') || rawType.includes('framework') || rawType.includes('law') || rawType === 'regulation' || rawType === 'directive') {
+                                      category = 'legislation';
+                                    }
+                                    
+                                    if (!acc[category]) acc[category] = [];
+                                    acc[category].push(element);
+                                    return acc;
+                                  }, {});
+
+                                  const renderElementColumn = (category: string, title: string) => (
+                                    <div key={category}>
+                                      <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                        {title} ({grouped[category]?.length || 0})
+                                      </h6>
+                                      <div className="space-y-2">
+                                        {grouped[category]?.map((element: any, idx: number) => {
+                                          const name = element?.element_name || element?.name || 'Unnamed';
+                                          const designation = element?.element_designation || element?.designation || '';
+                                          const description = element?.element_description_long || element?.description || '';
+                                          const countries = element?.element_countries || element?.countries || [];
+                                          
+                                          const elementUrl = element?.element_url || element?.url;
+                                          
+                                          return (
+                                            <div key={idx} className="bg-dashboard-view-background p-3">
+                                              <div className="flex items-start gap-2">
+                                                <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
+                                                <div className="flex-1">
+                                                  <div className="flex items-center gap-2 mb-1">
+                                                    <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                                      {name}
+                                                    </h6>
+                                                    {elementUrl && (
+                                                      <a 
+                                                        href={elementUrl} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="text-[hsl(var(--dashboard-link-color))] hover:text-[hsl(var(--dashboard-link-color))]/80"
+                                                        title="View compliance element details"
+                                                      >
+                                                        <ExternalLink className="w-3 h-3" />
+                                                      </a>
+                                                    )}
+                                                  </div>
+                                                  {designation && (
+                                                    <p className="text-xs text-gray-500 mb-2">
+                                                      {designation}
+                                                    </p>
+                                                  )}
+                                                  {description && (
+                                                    <p className="text-xs text-gray-600 mb-2">
+                                                      {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                    </p>
+                                                  )}
+                                                  {Array.isArray(countries) && countries.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1">
+                                                      {countries.map((country: any, cidx: number) => (
+                                                        <Badge key={cidx} className="bg-blue-50 text-blue-700 text-xs border-0">
+                                                          {String(country)}
+                                                        </Badge>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
                                               </div>
-                                            )}
-                                          </div>
-                                        </div>
+                                            </div>
+                                          );
+                                        })}
                                       </div>
-                                    );
-                                  })}
-                                </div>
+                                    </div>
+                                  );
+
+                                  return (
+                                    <div className="grid grid-cols-3 gap-4">
+                                      {renderElementColumn('legislation', 'Legislation')}
+                                      {renderElementColumn('standard', 'Standards')}
+                                      {renderElementColumn('marking', 'Markings')}
+                                    </div>
+                                  );
+                                })()
                               ) : (
                                 /* Fallback: Display raw response */
                                 <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
@@ -899,289 +1027,11 @@ export default function Products() {
                               )}
                             </div>
                           )}
-                        </div>
 
-                        {/* Step 3 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs text-gray-500">Step 3:</span>
-                            {getStatusBadge(product.step3Status)}
-                            {(product.step3Status === 'running' || product.step3Status === 'processing') ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStopStep(product.id, 3)}
-                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
-                                title="Stop Step 3"
-                              >
-                                <XCircle className="w-3 h-3" />
-                              </Button>
-                            ) : (product.step3Status === 'completed' || product.step3Status === 'error') && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRefreshStep(product.id, 3)}
-                                className="h-6 px-2 text-xs text-gray-500 hover:text-[hsl(var(--dashboard-link-color))]"
-                                title="Re-run Step 3"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                              </Button>
-                            )}
-                            {product.step3Status === 'running' && product.step3Progress && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600">{product.step3Progress.current}</span>
-                                <span className="text-xs text-gray-400">({product.step3Progress.percentage}%)</span>
-                              </div>
-                            )}
-                            {product.step3Status === 'completed' && product.step3Results && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setExpandedStep3(expandedStep3 === product.id ? null : product.id)}
-                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
-                              >
-                                {expandedStep3 === product.id ? (
-                                  <>
-                                    <ChevronUp className="w-3 h-3 mr-1" />
-                                    Hide Results
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="w-3 h-3 mr-1" />
-                                    Show Results
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                            {(product.step3Status === 'pending' || !product.step3Status) && product.step2Status === 'completed' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStartStep3(product.id)}
-                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
-                              >
-                                <Play className="w-3 h-3 mr-1" />
-                                Start Next
-                              </Button>
-                            )}
-                          </div>
+                        {/* Step 3 runs in the background - no display */}
 
-                          {/* Expandable Step 3 Results */}
-                          {expandedStep3 === product.id && product.step3Results && (
-                            <div className="ml-6 mt-2">
-                              <div className="mb-3">
-                                <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                  Compliance Sources ({product.step3Results.sources_count || 0})
-                                </h5>
-                              </div>
-                              
-                              {product.step3Results.compliance_sources && Array.isArray(product.step3Results.compliance_sources) && product.step3Results.compliance_sources.length > 0 ? (
-                                (() => {
-                                  // Group sources by type (legislation, standard, marking)
-                                  const groupedSources = product.step3Results.compliance_sources.reduce((acc: any, source: any) => {
-                                    const type = (source?.source_type || 'other').toLowerCase();
-                                    if (!acc[type]) acc[type] = [];
-                                    acc[type].push(source);
-                                    return acc;
-                                  }, {});
-
-                                  const legislation = groupedSources.legislation || [];
-                                  const standards = groupedSources.standard || [];
-                                  const markings = groupedSources.marking || [];
-
-                                  return (
-                                    <div className="grid grid-cols-3 gap-4">
-                                      {/* Legislation Column */}
-                                      <div>
-                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                          Legislation ({legislation.length})
-                                        </h6>
-                                        <div className="space-y-2">
-                                          {legislation.map((source: any, idx: number) => {
-                                            const name = source?.element_name || source?.name || 'Unnamed';
-                                            const url = source?.source_url || source?.url || '';
-                                            const description = source?.description || '';
-                                            
-                                            return (
-                                              <div key={idx} className="bg-dashboard-view-background p-3">
-                                                <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                                  {name}
-                                                </h6>
-                                                {url && (
-                                                  <a
-                                                    href={url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs text-blue-600 hover:underline mb-2 block"
-                                                  >
-                                                    {url}
-                                                  </a>
-                                                )}
-                                                {description && (
-                                                  <p className="text-xs text-gray-600">
-                                                    {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
-                                                  </p>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-
-                                      {/* Standards Column */}
-                                      <div>
-                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                          Standards ({standards.length})
-                                        </h6>
-                                        <div className="space-y-2">
-                                          {standards.map((source: any, idx: number) => {
-                                            const name = source?.element_name || source?.name || 'Unnamed';
-                                            const url = source?.source_url || source?.url || '';
-                                            const description = source?.description || '';
-                                            
-                                            return (
-                                              <div key={idx} className="bg-dashboard-view-background p-3">
-                                                <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                                  {name}
-                                                </h6>
-                                                {url && (
-                                                  <a
-                                                    href={url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs text-blue-600 hover:underline mb-2 block"
-                                                  >
-                                                    {url}
-                                                  </a>
-                                                )}
-                                                {description && (
-                                                  <p className="text-xs text-gray-600">
-                                                    {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
-                                                  </p>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-
-                                      {/* Markings Column */}
-                                      <div>
-                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                          Markings ({markings.length})
-                                        </h6>
-                                        <div className="space-y-2">
-                                          {markings.map((source: any, idx: number) => {
-                                            const name = source?.element_name || source?.name || 'Unnamed';
-                                            const url = source?.source_url || source?.url || '';
-                                            const description = source?.description || '';
-                                            
-                                            return (
-                                              <div key={idx} className="bg-dashboard-view-background p-3">
-                                                <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                                  {name}
-                                                </h6>
-                                                {url && (
-                                                  <a
-                                                    href={url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs text-blue-600 hover:underline mb-2 block"
-                                                  >
-                                                    {url}
-                                                  </a>
-                                                )}
-                                                {description && (
-                                                  <p className="text-xs text-gray-600">
-                                                    {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
-                                                  </p>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })()
-                              ) : (
-                                <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
-                                  <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
-                                    {product.step3Results.raw_response || JSON.stringify(product.step3Results, null, 2) || 'No data available'}
-                                  </pre>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Step 4 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs text-gray-500">Step 4:</span>
-                            {getStatusBadge(product.step4Status)}
-                            {(product.step4Status === 'running' || product.step4Status === 'processing') ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStopStep(product.id, 4)}
-                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
-                                title="Stop Step 4"
-                              >
-                                <XCircle className="w-3 h-3" />
-                              </Button>
-                            ) : (product.step4Status === 'completed' || product.step4Status === 'error') && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRefreshStep(product.id, 4)}
-                                className="h-6 px-2 text-xs text-gray-500 hover:text-[hsl(var(--dashboard-link-color))]"
-                                title="Re-run Step 4"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                              </Button>
-                            )}
-                            {product.step4Status === 'running' && product.step4Progress && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-600">{product.step4Progress.current}</span>
-                                <span className="text-xs text-gray-400">({product.step4Progress.percentage}%)</span>
-                              </div>
-                            )}
-                            {product.step4Status === 'completed' && product.step4Results && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setExpandedStep4(expandedStep4 === product.id ? null : product.id)}
-                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
-                              >
-                                {expandedStep4 === product.id ? (
-                                  <>
-                                    <ChevronUp className="w-3 h-3 mr-1" />
-                                    Hide Results
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="w-3 h-3 mr-1" />
-                                    Show Results
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                            {(product.step4Status === 'pending' || !product.step4Status) && product.step3Status === 'completed' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStartStep4(product.id)}
-                                className="h-6 px-2 text-xs text-[hsl(var(--dashboard-link-color))]"
-                              >
-                                <Play className="w-3 h-3 mr-1" />
-                                Start Next
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Expandable Step 4 Results */}
-                          {expandedStep4 === product.id && product.step4Results && (
+                        {/* Expandable Step 4 Results */}
+                          {expandedStep?.productId === product.id && expandedStep?.stepNumber === 4 && product.step4Results && (
                             <div className="ml-6 mt-2">
                               <div className="mb-3">
                                 <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
@@ -1190,53 +1040,236 @@ export default function Products() {
                               </div>
                               
                               {product.step4Results.compliance_updates && Array.isArray(product.step4Results.compliance_updates) && product.step4Results.compliance_updates.length > 0 ? (
-                                <div className="space-y-2">
-                                  {product.step4Results.compliance_updates.map((update: any, idx: number) => {
-                                    const name = update?.element_name || 'Unnamed';
-                                    const updateType = update?.update_type || 'Update';
-                                    const updateDate = update?.update_date || '';
-                                    const updateDesc = update?.update_description || '';
-                                    const sourceUrl = update?.source_url || '';
+                                (() => {
+                                  // Group updates by regulation/element
+                                  const updatesByElement: { [key: string]: any[] } = {};
+                                  
+                                  product.step4Results.compliance_updates.forEach((update: any) => {
+                                    const regulation = update?.regulation || update?.name || 'Unknown Regulation';
+                                    if (!updatesByElement[regulation]) {
+                                      updatesByElement[regulation] = [];
+                                    }
+                                    updatesByElement[regulation].push(update);
+                                  });
+
+                                  // Sort updates within each element by date descending
+                                  Object.keys(updatesByElement).forEach(key => {
+                                    updatesByElement[key].sort((a: any, b: any) => {
+                                      const dateA = a?.update_date || a?.date || '';
+                                      const dateB = b?.update_date || b?.date || '';
+                                      return dateB.localeCompare(dateA); // Descending
+                                    });
+                                  });
+
+                                  // Get element types from Step 2 if available
+                                  const elementTypes: { [key: string]: string } = {};
+                                  if (product.step2Results?.compliance_elements) {
+                                    product.step2Results.compliance_elements.forEach((el: any) => {
+                                      const name = el?.element_name || el?.name || '';
+                                      const type = (el?.element_type || el?.type || '').toLowerCase();
+                                      if (name) {
+                                        elementTypes[name] = type;
+                                      }
+                                    });
+                                  }
+
+                                  // Categorize elements by type
+                                  const legislation: { name: string; updates: any[] }[] = [];
+                                  const standards: { name: string; updates: any[] }[] = [];
+                                  const markings: { name: string; updates: any[] }[] = [];
+
+                                  Object.entries(updatesByElement).forEach(([elementName, updates]) => {
+                                    const type = elementTypes[elementName] || '';
+                                    const item = { name: elementName, updates };
                                     
-                                    return (
-                                      <div key={idx} className="bg-dashboard-view-background p-3">
-                                        <div className="flex items-start gap-2">
-                                          <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
-                                                {name}
+                                    if (type.includes('legislation') || type.includes('regulation') || type.includes('directive')) {
+                                      legislation.push(item);
+                                    } else if (type.includes('standard')) {
+                                      standards.push(item);
+                                    } else if (type.includes('marking')) {
+                                      markings.push(item);
+                                    } else {
+                                      // Default: try to guess from name
+                                      if (elementName.toLowerCase().includes('regulation') || 
+                                          elementName.toLowerCase().includes('directive') || 
+                                          elementName.toLowerCase().includes('law')) {
+                                        legislation.push(item);
+                                      } else if (elementName.toLowerCase().includes('standard') || 
+                                                 elementName.toLowerCase().includes('iso') || 
+                                                 elementName.toLowerCase().includes('en ')) {
+                                        standards.push(item);
+                                      } else if (elementName.toLowerCase().includes('marking') || 
+                                                 elementName.toLowerCase().includes('label')) {
+                                        markings.push(item);
+                                      } else {
+                                        legislation.push(item); // Default to legislation
+                                      }
+                                    }
+                                  });
+
+                                  return (
+                                    <div className="grid grid-cols-3 gap-4">
+                                      {/* Legislation Column */}
+                                      <div>
+                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          Legislation ({legislation.length})
+                                        </h6>
+                                        <div className="space-y-3">
+                                          {legislation.map((element, elIdx) => (
+                                            <div key={elIdx} className="bg-white border-0 p-3">
+                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                                {element.name}
                                               </h6>
-                                              <Badge className="bg-orange-100 text-orange-700 text-xs border-0">
-                                                {updateType}
-                                              </Badge>
+                                              <div className="space-y-2">
+                                                {element.updates.map((update: any, idx: number) => {
+                                                  const title = update?.title || '';
+                                                  const updateType = update?.type || 'Update';
+                                                  const updateDate = update?.update_date || update?.date || '';
+                                                  const description = update?.description || update?.update || '';
+                                                  const impact = update?.impact || '';
+                                                  const validity = update?.validity || '';
+                                                  
+                                                  return (
+                                                    <div key={idx} className="bg-dashboard-view-background p-2 border-l-2 border-blue-500">
+                                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        {impact && (
+                                                          <Badge className={`text-xs border-0 ${
+                                                            impact.toUpperCase() === 'HIGH' ? 'bg-red-100 text-red-700' :
+                                                            impact.toUpperCase() === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-green-100 text-green-700'
+                                                          }`}>
+                                                            {impact}
+                                                          </Badge>
+                                                        )}
+                                                        {updateDate && (
+                                                          <span className="text-xs text-gray-500">{updateDate}</span>
+                                                        )}
+                                                      </div>
+                                                      <p className="text-xs font-semibold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                        {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
+                                                      </p>
+                                                      {description && (
+                                                        <p className="text-xs text-gray-600">
+                                                          {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
                                             </div>
-                                            {updateDate && (
-                                              <p className="text-xs text-gray-500 mb-1">
-                                                Date: {updateDate}
-                                              </p>
-                                            )}
-                                            {updateDesc && (
-                                              <p className="text-xs text-gray-600 mb-2">
-                                                {String(updateDesc).substring(0, 200)}{String(updateDesc).length > 200 ? '...' : ''}
-                                              </p>
-                                            )}
-                                            {sourceUrl && (
-                                              <a
-                                                href={sourceUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-xs text-blue-600 hover:underline"
-                                              >
-                                                Source
-                                              </a>
-                                            )}
-                                          </div>
+                                          ))}
                                         </div>
                                       </div>
-                                    );
-                                  })}
-                                </div>
+
+                                      {/* Standards Column */}
+                                      <div>
+                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          Standards ({standards.length})
+                                        </h6>
+                                        <div className="space-y-3">
+                                          {standards.map((element, elIdx) => (
+                                            <div key={elIdx} className="bg-white border-0 p-3">
+                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                                {element.name}
+                                              </h6>
+                                              <div className="space-y-2">
+                                                {element.updates.map((update: any, idx: number) => {
+                                                  const title = update?.title || '';
+                                                  const updateType = update?.type || 'Update';
+                                                  const updateDate = update?.update_date || update?.date || '';
+                                                  const description = update?.description || update?.update || '';
+                                                  const impact = update?.impact || '';
+                                                  const validity = update?.validity || '';
+                                                  
+                                                  return (
+                                                    <div key={idx} className="bg-dashboard-view-background p-2 border-l-2 border-blue-500">
+                                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        {impact && (
+                                                          <Badge className={`text-xs border-0 ${
+                                                            impact.toUpperCase() === 'HIGH' ? 'bg-red-100 text-red-700' :
+                                                            impact.toUpperCase() === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-green-100 text-green-700'
+                                                          }`}>
+                                                            {impact}
+                                                          </Badge>
+                                                        )}
+                                                        {updateDate && (
+                                                          <span className="text-xs text-gray-500">{updateDate}</span>
+                                                        )}
+                                                      </div>
+                                                      <p className="text-xs font-semibold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                        {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
+                                                      </p>
+                                                      {description && (
+                                                        <p className="text-xs text-gray-600">
+                                                          {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* Markings Column */}
+                                      <div>
+                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          Markings ({markings.length})
+                                        </h6>
+                                        <div className="space-y-3">
+                                          {markings.map((element, elIdx) => (
+                                            <div key={elIdx} className="bg-white border-0 p-3">
+                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                                {element.name}
+                                              </h6>
+                                              <div className="space-y-2">
+                                                {element.updates.map((update: any, idx: number) => {
+                                                  const title = update?.title || '';
+                                                  const updateType = update?.type || 'Update';
+                                                  const updateDate = update?.update_date || update?.date || '';
+                                                  const description = update?.description || update?.update || '';
+                                                  const impact = update?.impact || '';
+                                                  const validity = update?.validity || '';
+                                                  
+                                                  return (
+                                                    <div key={idx} className="bg-dashboard-view-background p-2 border-l-2 border-blue-500">
+                                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        {impact && (
+                                                          <Badge className={`text-xs border-0 ${
+                                                            impact.toUpperCase() === 'HIGH' ? 'bg-red-100 text-red-700' :
+                                                            impact.toUpperCase() === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-green-100 text-green-700'
+                                                          }`}>
+                                                            {impact}
+                                                          </Badge>
+                                                        )}
+                                                        {updateDate && (
+                                                          <span className="text-xs text-gray-500">{updateDate}</span>
+                                                        )}
+                                                      </div>
+                                                      <p className="text-xs font-semibold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                        {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
+                                                      </p>
+                                                      {description && (
+                                                        <p className="text-xs text-gray-600">
+                                                          {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
                               ) : (
                                 <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
                                   <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
@@ -1246,7 +1279,6 @@ export default function Products() {
                               )}
                             </div>
                           )}
-                        </div>
                       </div>
 
                       <div className="mt-4 text-xs text-gray-400">

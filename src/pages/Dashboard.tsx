@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth0 } from '@auth0/auth0-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { productService } from '@/services/productService';
+import { apiService } from '@/services/api';
 import { Loader2 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 interface Product {
   id: string;
@@ -14,17 +17,40 @@ interface Product {
   step0Status: string;
   step1Status: string;
   step2Status: string;
+  step2Results?: {
+    compliance_elements: Array<{
+      designation?: string;
+      type?: string;
+      element_type?: string;
+      [key: string]: any;
+    }>;
+  };
+  step4Results?: {
+    compliance_updates: Array<{
+      regulation?: string;
+      type?: string;
+      [key: string]: any;
+    }>;
+  };
 }
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth0();
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [complianceUpdates, setComplianceUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    if (user?.sub) {
+      fetchComplianceUpdates();
+    }
+  }, [user]);
 
   const fetchProducts = async () => {
     try {
@@ -34,6 +60,22 @@ export default function Dashboard() {
       console.error('Failed to fetch products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchComplianceUpdates = async () => {
+    try {
+      if (!user?.sub) {
+        console.log('No user loaded yet, skipping compliance updates fetch');
+        return;
+      }
+      const clientId = 'supercase'; // Use hardcoded client ID for now
+      console.log('Fetching compliance updates for client:', clientId);
+      const response = await apiService.get(`/api/products/${clientId}/compliance-updates`);
+      console.log('Compliance updates response:', response.data);
+      setComplianceUpdates(response.data?.updates || []);
+    } catch (error) {
+      console.error('Failed to fetch compliance updates:', error);
     }
   };
 
@@ -49,6 +91,76 @@ export default function Dashboard() {
     completed: products.filter(p => p.status === 'completed').length,
     error: products.filter(p => p.status === 'error').length,
   };
+
+  // Aggregate compliance updates by year-month from shared database (10-year range)
+  const chartData = useMemo(() => {
+    // Generate 120-month range (60 before current, current, 59 after) = 10 years
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    const monthlyAggregation: { [key: string]: { legislation: number, standard: number, marking: number } } = {};
+    
+    // Initialize all 120 months with 0 values
+    for (let i = -60; i <= 59; i++) {
+      const targetDate = new Date(currentYear, currentMonth + i, 1);
+      const yearMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+      monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0 };
+    }
+    
+    // Aggregate actual data from compliance updates
+    complianceUpdates.forEach((update: any) => {
+      const updateDate = update?.update_date || update?.date;
+      if (!updateDate) return;
+      
+      try {
+        const date = new Date(updateDate);
+        const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        
+        // Only include if within our 120-month range
+        if (monthlyAggregation[yearMonth]) {
+          const updateType = (update?.type || '').toLowerCase();
+          
+          // Categorize by type
+          if (updateType.includes('standard') || updateType === 'standard') {
+            monthlyAggregation[yearMonth].standard++;
+          } else if (updateType.includes('marking') || updateType === 'marking') {
+            monthlyAggregation[yearMonth].marking++;
+          } else {
+            monthlyAggregation[yearMonth].legislation++;
+          }
+        }
+      } catch {
+        console.error('Failed to parse date:', updateDate);
+      }
+    });
+    
+    // Convert to array and sort by date
+    return Object.keys(monthlyAggregation)
+      .sort()
+      .map(yearMonth => {
+        const [year, month] = yearMonth.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1);
+        const monthName = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+        
+        return {
+          date: yearMonth,
+          displayDate: monthName,
+          legislation: monthlyAggregation[yearMonth].legislation,
+          standard: monthlyAggregation[yearMonth].standard,
+          marking: monthlyAggregation[yearMonth].marking,
+          total: monthlyAggregation[yearMonth].legislation + monthlyAggregation[yearMonth].standard + monthlyAggregation[yearMonth].marking
+        };
+      });
+  }, [complianceUpdates]);
+
+  // Calculate total compliance updates
+  const totalComplianceUpdates = chartData.reduce((sum, item) => sum + item.total, 0);
+  
+  // Calculate total compliance elements from Step 2
+  const totalComplianceElements = products.reduce((sum, product) => {
+    return sum + (product.step2Results?.compliance_elements?.length || 0);
+  }, 0);
 
   return (
     <div className="min-h-screen bg-dashboard-view-background p-8">
@@ -108,22 +220,124 @@ export default function Dashboard() {
               <CardDescription className="text-sm text-gray-500">Tracked regulations & standards</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">0</div>
-              <Badge variant="secondary" className="mt-2">0 / 5 used</Badge>
+              {loading ? (
+                <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
+              ) : (
+                <>
+                  <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">{totalComplianceElements}</div>
+                  <div className="mt-3 space-y-1">
+                    {totalComplianceElements > 0 ? (
+                      <Badge className="bg-blue-100 text-blue-700 border-0">
+                        From {products.filter(p => p.step2Results?.compliance_elements).length} products
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="border-0">No elements yet</Badge>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card className="bg-white border-0">
             <CardHeader>
-              <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Notifications</CardTitle>
-              <CardDescription className="text-sm text-gray-500">Pending compliance updates</CardDescription>
+              <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Compliance Updates</CardTitle>
+              <CardDescription className="text-sm text-gray-500">Total updates tracked</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">0</div>
-              <Badge variant="secondary" className="mt-2">All caught up</Badge>
+              {loading ? (
+                <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
+              ) : (
+                <>
+                  <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">{totalComplianceUpdates}</div>
+                  <div className="mt-3 space-y-1">
+                    {totalComplianceUpdates > 0 ? (
+                      <Badge className="bg-orange-100 text-orange-700 border-0">
+                        From {products.filter(p => p.step4Results?.compliance_updates).length} products
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="border-0">No updates yet</Badge>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
+
+        {/* Compliance Updates Timeline Chart */}
+        <Card className="bg-white border-0">
+          <CardHeader>
+            <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+              Product-Related Compliance Updates
+            </CardTitle>
+            <CardDescription className="text-sm text-gray-500">
+              10-year view of compliance updates with current month in the center
+            </CardDescription>
+          </CardHeader>
+          {chartData.length > 0 ? (
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart 
+                  data={chartData} 
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="displayDate" 
+                    tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis 
+                    label={{ value: 'Updates', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' } }}
+                    tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: 'none', 
+                      borderRadius: '0',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                    }}
+                    labelStyle={{ color: '#1f2937', fontWeight: 'bold', fontSize: 11, fontFamily: 'Geist Mono, monospace' }}
+                    itemStyle={{ fontSize: 10, fontFamily: 'Geist Mono, monospace' }}
+                  />
+                  <Legend 
+                    iconType="rect"
+                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px', fontFamily: 'Geist Mono, monospace' }}
+                  />
+                  <Bar 
+                    dataKey="legislation" 
+                    stackId="a"
+                    fill="#3b82f6"
+                    radius={[0, 0, 0, 0]}
+                    name="Legislation"
+                  />
+                  <Bar 
+                    dataKey="standard" 
+                    stackId="a"
+                    fill="#60a5fa"
+                    radius={[0, 0, 0, 0]}
+                    name="Standards"
+                  />
+                  <Bar 
+                    dataKey="marking" 
+                    stackId="a"
+                    fill="#93c5fd"
+                    radius={[2, 2, 0, 0]}
+                    name="Markings"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          ) : (
+            <CardContent className="py-12 text-center">
+              <p className="text-gray-500 text-sm">No compliance updates tracked yet. Complete Step 4 on your products to see data.</p>
+            </CardContent>
+          )}
+        </Card>
 
         {products.length === 0 && !loading && (
           <Card className="bg-white border-0">

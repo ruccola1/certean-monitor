@@ -1,5 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react';
-import { Bell, User, Settings, LogOut } from 'lucide-react';
+import { Bell, User, Settings, LogOut, CheckCircle, XCircle, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,9 +12,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useNotificationContext } from '@/contexts/NotificationContext';
+import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { apiService } from '@/services/api';
 
 export default function Topbar() {
   const { user, logout } = useAuth0();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAll } = useNotificationContext();
+  const navigate = useNavigate();
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('');
 
   // Use Auth0 user data if available, otherwise use demo data
   const clientName = "Supercase"; // This would come from user metadata in production
@@ -24,7 +31,31 @@ export default function Topbar() {
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase()
     : "NZ";
   const userPicture = user?.picture;
-  const notificationCount = 0;
+
+  // Fetch subscription tier
+  useEffect(() => {
+    const fetchBillingInfo = async () => {
+      if (user?.sub) {
+        try {
+          const clientId = user.sub.split('|')[1] || user.sub;
+          const response = await apiService.get(`/api/billing/${clientId}`);
+          
+          if (response.data.subscription?.tier) {
+            // Capitalize tier name (e.g., "manager" -> "Manager")
+            const tierName = response.data.subscription.tier;
+            const capitalizedTier = tierName.charAt(0).toUpperCase() + tierName.slice(1);
+            setSubscriptionTier(capitalizedTier);
+          }
+        } catch (error) {
+          console.error('Failed to fetch billing info:', error);
+          // Default to Free tier if API fails
+          setSubscriptionTier('Free');
+        }
+      }
+    };
+
+    fetchBillingInfo();
+  }, [user]);
 
   const handleLogout = () => {
     logout({
@@ -37,23 +68,113 @@ export default function Topbar() {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between bg-background px-4 md:px-6 border-b border-gray-300">
       <div className="flex items-center gap-4">
-        <h2 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
-          {clientName}
+        <h2 className="text-sm text-[hsl(var(--dashboard-link-color))]">
+          <span className="font-bold">{clientName}</span>
+          {subscriptionTier && (
+            <>
+              <span className="mx-2 font-normal text-gray-400">|</span>
+              <span className="font-normal">{subscriptionTier} Plan</span>
+            </>
+          )}
         </h2>
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="relative">
-          <Button variant="ghost" size="icon">
-            <Bell className="h-5 w-5 text-gray-600" />
-            <span className="sr-only">Notifications</span>
-          </Button>
-          {notificationCount > 0 && (
-            <Badge className="absolute -top-1 -right-1 px-1.5 py-0.5 text-xs bg-[hsl(var(--dashboard-link-color))] text-white">
-              {notificationCount}
-            </Badge>
-          )}
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="relative">
+              <Button variant="ghost" size="icon">
+                <Bell className="h-5 w-5 text-gray-600" />
+                <span className="sr-only">Notifications</span>
+              </Button>
+              {unreadCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 px-1.5 py-0.5 text-xs bg-[hsl(var(--dashboard-link-color))] text-white border-0">
+                  {unreadCount}
+                </Badge>
+              )}
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-96 max-h-[500px] overflow-y-auto border-0">
+            <DropdownMenuLabel>
+              <div className="flex items-center justify-between">
+                <span>Notifications</span>
+                {notifications.length > 0 && (
+                  <div className="flex gap-2">
+                    {unreadCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={markAllAsRead}
+                        className="h-6 px-2 text-xs"
+                      >
+                        Mark all read
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAll}
+                      className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                    >
+                      Clear all
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {notifications.length === 0 ? (
+              <div className="p-4 text-center text-sm text-gray-500">
+                No notifications
+              </div>
+            ) : (
+              <div className="max-h-[400px] overflow-y-auto">
+                {notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`p-3 hover:bg-dashboard-view-background cursor-pointer border-b border-gray-200 ${
+                      !notification.read ? 'bg-blue-50' : ''
+                    }`}
+                    onClick={() => {
+                      markAsRead(notification.id);
+                      navigate('/products');
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 flex-1">
+                        {notification.type === 'success' ? (
+                          <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                            {notification.title}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(notification.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(notification.id);
+                        }}
+                        className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
         
         <Separator orientation="vertical" className="h-6" />
 

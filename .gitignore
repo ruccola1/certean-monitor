@@ -36,3 +36,4 @@ coverage
 
 # TypeScript
 *.tsbuildinfo
+STRIPE_SETUP_COMPLETE.md

@@ -1,0 +1,4 @@
+You are working with regulatopry and compliance information. Do not invent, change any information or data that resides in the database. AI outputted data has to be directly from the API. Do not use any other output from prompts.
+---
+alwaysApply: true
+---

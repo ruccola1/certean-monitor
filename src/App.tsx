@@ -3,6 +3,8 @@ import { useAuth0 } from '@auth0/auth0-react';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
+import Pricing from './pages/Pricing';
+import Billing from './pages/Billing';
 import Login from './pages/Login';
 import AuthCallback from './components/auth/AuthCallback';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -77,10 +79,17 @@ function App() {
           element={
             <ProtectedRoute>
               <AppLayout>
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold">Billing</h1>
-                  <p className="mt-4">Coming soon...</p>
-                </div>
+                <Billing />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pricing"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Pricing />
               </AppLayout>
             </ProtectedRoute>
           }

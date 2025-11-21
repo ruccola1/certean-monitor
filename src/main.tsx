@@ -4,6 +4,7 @@ import { Auth0Provider } from '@auth0/auth0-react'
 import './styles/globals.css'
 import App from './App.tsx'
 import { auth0Config } from './config/auth0'
+import { NotificationProvider } from './contexts/NotificationContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -14,7 +15,9 @@ createRoot(document.getElementById('root')!).render(
       cacheLocation={auth0Config.cacheLocation}
       useRefreshTokens={auth0Config.useRefreshTokens}
     >
-      <App />
+      <NotificationProvider>
+        <App />
+      </NotificationProvider>
     </Auth0Provider>
   </StrictMode>,
 )

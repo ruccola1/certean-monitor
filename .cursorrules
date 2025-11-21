@@ -20,7 +20,13 @@
    - Use background color contrast (white on light gray) for separation
    - Never use `border` classes on containers
 
-3. **CONSISTENT STYLING FROM STUDIO REPO** - Match the Studio design system exactly
+4. **NO FOCUS OUTLINES OR BLUE BORDERS** - No visible focus rings anywhere
+   - Set `outline: none` on all interactive elements
+   - Never use `focus:ring-*` or `focus:outline-*` classes
+   - Global CSS enforces: `*:focus, *:focus-visible, *:focus-within { outline: none !important; box-shadow: none !important; }`
+   - Clean, flat interaction states only
+
+5. **CONSISTENT STYLING FROM STUDIO REPO** - Match the Studio design system exactly
    - Source: `/Users/nicolaszander/Desktop/certean/dev/studio`
    - Colors from Studio's globals.css
    - Typography using Geist Sans and Geist Mono fonts
@@ -94,11 +100,13 @@ export default function PageName() {
 - `rounded-*` classes (except `rounded-0`)
 - `shadow-*` classes (any shadows)
 - `drop-shadow-*` classes
+- `focus:ring-*` or `focus:outline-*` classes (no focus rings)
 - `border` on cards/containers
 - `bg-gray-*` for page backgrounds
 - Custom colors that don't match the design system
 - Round corners anywhere
 - Drop shadows anywhere
+- Blue focus outlines/borders anywhere
 
 ✅ **Always use:**
 - `border-0` on all cards
@@ -140,6 +148,7 @@ Before marking any UI work as complete, verify:
 
 - [ ] No rounded corners anywhere
 - [ ] No drop shadows anywhere (no `shadow-*` classes)
+- [ ] No focus outlines or blue borders (no `focus:ring-*` or `focus:outline-*`)
 - [ ] No borders on cards (use `border-0`)
 - [ ] Page uses `bg-dashboard-view-background`
 - [ ] Cards use `bg-white border-0`
