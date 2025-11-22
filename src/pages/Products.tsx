@@ -1,7 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+import { getClientId } from '@/utils/clientId';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, RefreshCw, XCircle, Eye, EyeOff, ExternalLink, Bell, MoreVertical, Edit, Copy, Share2 } from 'lucide-react';
@@ -197,11 +200,21 @@ interface ProductDetails {
   };
 }
 
+interface ComplianceArea {
+  id: string;
+  name: string;
+  description: string;
+  isDefault?: boolean;
+}
+
 export default function Products() {
+  const { user } = useAuth0();
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [productToDuplicate, setProductToDuplicate] = useState<ProductDetails | null>(null);
+  const [complianceAreas, setComplianceAreas] = useState<ComplianceArea[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   // const [pollingInterval, setPollingInterval] = useState<ReturnType<typeof setTimeout> | null>(null);
   // Single state to track which step is expanded (only one at a time)
   const [expandedStep, setExpandedStep] = useState<{ productId: string; stepNumber: number } | null>(null);
@@ -228,7 +241,9 @@ export default function Products() {
         apiService.setToken(apiKey);
       }
 
-      const response = await productService.getAll();
+      // Extract client_id (company ID) from Auth0 user metadata
+      const clientId = getClientId(user);
+      const response = await productService.getAll(clientId);
       setProducts((response.data || []) as unknown as ProductDetails[]);
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -240,6 +255,7 @@ export default function Products() {
   useEffect(() => {
     // Fetch products immediately when component mounts
     fetchProducts();
+    fetchComplianceAreas();
 
     // Poll for updates every 5 seconds
     const interval = setInterval(() => {
@@ -250,6 +266,56 @@ export default function Products() {
       if (interval) clearInterval(interval);
     };
   }, []);
+
+  const fetchComplianceAreas = async () => {
+    try {
+      const apiKey = import.meta.env.VITE_CERTEAN_API_KEY;
+      if (apiKey) {
+        apiService.setToken(apiKey);
+      }
+
+      // Extract client_id from Auth0 user token (use user.sub as client_id)
+      const clientId = getClientId(user);
+      const response = await apiService.get(`/api/compliance-areas/custom/${clientId}`);
+      
+      if (response.data && response.data.length > 0) {
+        setComplianceAreas(response.data);
+      } else {
+        // Fallback to default areas
+        const defaultResponse = await apiService.get('/api/compliance-areas/default');
+        if (defaultResponse.data) {
+          setComplianceAreas(defaultResponse.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching compliance areas:', error);
+      // Try to get default areas as fallback
+      try {
+        const defaultResponse = await apiService.get('/api/compliance-areas/default');
+        if (defaultResponse.data) {
+          setComplianceAreas(defaultResponse.data);
+        }
+      } catch (e) {
+        console.error('Error fetching default compliance areas:', e);
+      }
+    }
+  };
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
+  const clearFilters = () => {
+    setSelectedCategories(new Set());
+  };
   
   // Force refresh when navigating to this page
   useEffect(() => {
@@ -365,7 +431,10 @@ export default function Products() {
   const handleStartStep0 = async (productId: string) => {
     try {
       console.log('🚀 Starting Step 0 for product:', productId);
-      const response = await productService.runStep0(productId);
+      // Extract client_id (company ID) from Auth0 user metadata
+      const clientId = getClientId(user);
+      console.log('🔑 Using clientId (company):', clientId);
+      const response = await productService.executeStep0(productId, clientId);
       console.log('✅ Step 0 started successfully:', response);
       fetchProducts();
     } catch (error) {
@@ -391,7 +460,9 @@ export default function Products() {
 
   const handleStartStep2 = async (productId: string) => {
     try {
-      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step2`);
+      // Extract client_id (company ID) from Auth0 user metadata
+      const clientId = getClientId(user);
+      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step2?client_id=${clientId}`);
       console.log('Step 2 started for product:', productId, response.data);
       fetchProducts();
     } catch (error) {
@@ -401,7 +472,9 @@ export default function Products() {
 
   const handleStartStep3 = async (productId: string) => {
     try {
-      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step3`);
+      // Extract client_id (company ID) from Auth0 user metadata
+      const clientId = getClientId(user);
+      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step3?client_id=${clientId}`);
       console.log('Step 3 started for product:', productId, response.data);
       fetchProducts();
     } catch (error) {
@@ -411,7 +484,9 @@ export default function Products() {
 
   const handleStartStep4 = async (productId: string) => {
     try {
-      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step4`);
+      // Extract client_id (company ID) from Auth0 user metadata
+      const clientId = getClientId(user);
+      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step4?client_id=${clientId}`);
       console.log('Step 4 started for product:', productId, response.data);
       fetchProducts();
     } catch (error) {
@@ -570,7 +645,7 @@ export default function Products() {
                         })()}
                       </p>
 
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 text-sm">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 text-sm mb-4">
                         <div>
                           <span className="text-gray-500">Type:</span>
                           <span className="ml-2 text-[hsl(var(--dashboard-link-color))] font-medium">
@@ -588,7 +663,7 @@ export default function Products() {
                       {/* Pipeline Status - Horizontal Step Boxes */}
                       <div className="mt-4 pt-4 border-t border-gray-100">
                         {/* Step Boxes - Responsive Layout - All 5 steps (1 & 3 are status-only markers) */}
-                        <div className="grid grid-cols-5 gap-1 sm:gap-2 mb-4">
+                        <div className="flex gap-1 sm:gap-2 mb-4 w-full">
                           {/* Step 0 Box - Product Details */}
                           <button
                             onClick={() => {
@@ -598,7 +673,7 @@ export default function Products() {
                                 setExpandedStep({ productId: product.id, stepNumber: 0 });
                               }
                             }}
-                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative ${
+                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative flex-1 ${
                               expandedStep?.productId === product.id && expandedStep?.stepNumber === 0
                                 ? 'bg-gray-200'
                                 : 'bg-white hover:bg-gray-50'
@@ -646,7 +721,7 @@ export default function Products() {
                           </button>
 
                           {/* Step 1 Marker - Compliance Assessment (Status Only) */}
-                          <div className="border-0 p-2 sm:p-4 bg-gray-100">
+                          <div className="border-0 p-2 sm:p-4 bg-gray-100 flex-1">
                             <div className="flex flex-col items-center justify-center h-full">
                               <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1 sm:mb-2 text-center leading-tight">Compliance Assessment</span>
                               {getStatusBadge(product.step1Status)}
@@ -665,7 +740,7 @@ export default function Products() {
                                 setExpandedStep({ productId: product.id, stepNumber: 2 });
                               }
                             }}
-                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative ${
+                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative flex-1 ${
                               expandedStep?.productId === product.id && expandedStep?.stepNumber === 2
                                 ? 'bg-gray-200'
                                 : 'bg-white hover:bg-gray-50'
@@ -713,7 +788,7 @@ export default function Products() {
                           </button>
 
                           {/* Step 3 Marker - Element Mapping (Status Only) */}
-                          <div className="border-0 p-2 sm:p-4 bg-gray-100">
+                          <div className="border-0 p-2 sm:p-4 bg-gray-100 flex-1">
                             <div className="flex flex-col items-center justify-center h-full">
                               <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1 sm:mb-2 text-center leading-tight">Element Mapping</span>
                               {getStatusBadge(product.step3Status)}
@@ -732,7 +807,7 @@ export default function Products() {
                                 setExpandedStep({ productId: product.id, stepNumber: 4 });
                               }
                             }}
-                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative ${
+                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative flex-1 ${
                               expandedStep?.productId === product.id && expandedStep?.stepNumber === 4
                                 ? 'bg-gray-200'
                                 : 'bg-white hover:bg-gray-50'
@@ -953,12 +1028,59 @@ export default function Products() {
                                   Compliance Elements ({product.step2Results.elements_count || 0})
                                 </h5>
                               </div>
+
+                              {/* Category Filter */}
+                              {complianceAreas.length > 0 && (
+                                <div className="mb-4 p-3 bg-dashboard-view-background">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <Label className="text-xs font-medium text-[hsl(var(--dashboard-link-color))]">
+                                      Filter by Compliance Area:
+                                    </Label>
+                                    {selectedCategories.size > 0 && (
+                                      <button
+                                        onClick={clearFilters}
+                                        className="text-xs text-gray-500 hover:text-gray-700"
+                                      >
+                                        Clear filters
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {complianceAreas.map((area) => {
+                                      const isSelected = selectedCategories.has(area.id);
+                                      return (
+                                        <button
+                                          key={area.id}
+                                          onClick={() => toggleCategory(area.id)}
+                                          className={`px-3 py-1 text-xs border-0 transition-colors ${
+                                            isSelected
+                                              ? 'bg-[hsl(var(--dashboard-link-color))] text-white'
+                                              : 'bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100'
+                                          }`}
+                                        >
+                                          {area.name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                               
                               {/* Display as structured list if we have parsed elements */}
                               {product.step2Results.compliance_elements && Array.isArray(product.step2Results.compliance_elements) && product.step2Results.compliance_elements.length > 0 ? (
                                 (() => {
+                                  // Filter elements by selected categories
+                                  let filteredElements = product.step2Results.compliance_elements;
+                                  
+                                  if (selectedCategories.size > 0) {
+                                    filteredElements = filteredElements.filter((element: any) => {
+                                      const areaIds = element?.compliance_area_id || element?.compliance_area_custom_ids || [];
+                                      return areaIds.some((id: string) => selectedCategories.has(id));
+                                    });
+                                  }
+
                                   // Group elements by normalized type
-                                  const grouped = product.step2Results.compliance_elements.reduce((acc: any, element: any) => {
+                                  const grouped = filteredElements.reduce((acc: any, element: any) => {
                                     const rawType = (element?.element_type || element?.type || 'other').toLowerCase();
                                     let category = 'legislation';
                                     
@@ -1583,7 +1705,8 @@ export default function Products() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    {/* Action Buttons - Top Right Corner */}
+                    <div className="flex gap-2 flex-shrink-0 items-start">
                       {(
                         product.step0Status === 'pending' || !product.step0Status || 
                         product.step1Status === 'pending' || !product.step1Status || 

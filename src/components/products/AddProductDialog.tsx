@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+import { getClientId } from '@/utils/clientId';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +32,7 @@ interface AddProductDialogProps {
 }
 
 export function AddProductDialog({ open, onOpenChange, onProductAdded, initialProduct }: AddProductDialogProps) {
+  const { user } = useAuth0();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'existing' | 'new'>('existing');
@@ -122,8 +125,11 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
 
       console.log('Adding product:', productData);
       
-      // Call API to add product
-      const response = await productService.createBulk(productData.products);
+      // Extract client_id (company ID) from Auth0 user metadata
+      const clientId = getClientId(user);
+      
+      // Call API to add product with client_id
+      const response = await productService.createBulk(productData.products, clientId);
       
       console.log('Product created successfully:', response);
 
@@ -132,7 +138,9 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
         const productId = response.data[0].id;
         try {
           console.log('Starting Step 0 processing for product:', productId);
-          await productService.runStep0(productId);
+          // Extract client_id from Auth0 user token
+          const clientId = getClientId(user);
+          await productService.runStep0(productId, clientId);
           console.log('Step 0 processing started successfully');
         } catch (error) {
           console.error('Failed to start Step 0:', error);

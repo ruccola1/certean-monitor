@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Pricing from './pages/Pricing';
 import Billing from './pages/Billing';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import AuthCallback from './components/auth/AuthCallback';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -112,10 +113,7 @@ function App() {
           element={
             <ProtectedRoute>
               <AppLayout>
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold">Settings</h1>
-                  <p className="mt-4">Coming soon...</p>
-                </div>
+                <Settings />
               </AppLayout>
             </ProtectedRoute>
           }

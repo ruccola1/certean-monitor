@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+import { getClientId } from '@/utils/clientId';
 import { CreditCard, Download, Calendar, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -6,9 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { getPlanById } from '@/config/subscriptionPlans';
 import type { Subscription, Invoice, UsageStats } from '@/types/subscription';
-import { apiService } from '@/services/api';
 
 export default function Billing() {
+  const { user } = useAuth0();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [usage, setUsage] = useState<UsageStats | null>(null);
@@ -20,7 +22,8 @@ export default function Billing() {
 
   const fetchBillingData = async () => {
     try {
-      const clientId = 'supercase'; // TODO: Get from user context
+      // Extract client_id from Auth0 user token (use user.sub as client_id)
+      const clientId = getClientId(user);
       const { billingService } = await import('../services/billingService');
       const response = await billingService.get<{
         subscription: any;

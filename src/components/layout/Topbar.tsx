@@ -16,6 +16,7 @@ import { useNotificationContext } from '@/contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { apiService } from '@/services/api';
+import { getClientId } from '@/utils/clientId';
 
 interface TopbarProps {
   onMobileMenuToggle?: () => void;
@@ -39,9 +40,9 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
   // Fetch subscription tier
   useEffect(() => {
     const fetchBillingInfo = async () => {
-      if (user?.sub) {
+      const clientId = getClientId(user);
+      if (clientId) {
         try {
-          const clientId = user.sub.split('|')[1] || user.sub;
           const { billingService } = await import('../../services/billingService');
           const response = await billingService.get<{
             subscription?: { tier?: string };
@@ -53,8 +54,11 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
             const capitalizedTier = tierName.charAt(0).toUpperCase() + tierName.slice(1);
             setSubscriptionTier(capitalizedTier);
           }
-        } catch (error) {
-          console.error('Failed to fetch billing info:', error);
+        } catch (error: any) {
+          // Only log if it's not a 404 (expected when billing service isn't configured)
+          if (error?.response?.status !== 404) {
+            console.error('Failed to fetch billing info:', error);
+          }
           // Default to Free tier if API fails
           setSubscriptionTier('Free');
         }

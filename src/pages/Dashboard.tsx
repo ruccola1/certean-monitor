@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
+import { getClientId } from '@/utils/clientId';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,7 +48,8 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (user?.sub) {
+    const clientId = getClientId(user);
+    if (clientId) {
       fetchComplianceUpdates();
     }
   }, [user]);
@@ -69,7 +71,8 @@ export default function Dashboard() {
         console.log('No user loaded yet, skipping compliance updates fetch');
         return;
       }
-      const clientId = 'supercase'; // Use hardcoded client ID for now
+      // Extract client_id from Auth0 user token (use user.sub as client_id)
+      const clientId = getClientId(user);
       console.log('Fetching compliance updates for client:', clientId);
       const response = await apiService.get(`/api/products/${clientId}/compliance-updates`);
       console.log('Compliance updates response:', response.data);

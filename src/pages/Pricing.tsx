@@ -7,6 +7,7 @@ import { SUBSCRIPTION_PLANS } from '@/config/subscriptionPlans';
 import type { SubscriptionTier } from '@/types/subscription';
 import { apiService } from '@/services/api';
 import { useAuth0 } from '@auth0/auth0-react';
+import { getClientId } from '@/utils/clientId';
 
 export default function Pricing() {
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier | null>(null);
@@ -40,7 +41,7 @@ export default function Pricing() {
         const { billingService } = await import('../services/billingService');
         const response = await billingService.post<{ url: string; sessionId: string }>('/api/stripe/create-checkout-session', {
           price_id: plan.stripePriceId,
-          client_id: 'supercase', // TODO: Get from user context
+                client_id: getClientId(user), // Use company/client ID from Auth0 metadata
           user_email: user?.email || 'nicolas@supercase.se',
           success_url: `${window.location.origin}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
           cancel_url: `${window.location.origin}/pricing?canceled=true`
