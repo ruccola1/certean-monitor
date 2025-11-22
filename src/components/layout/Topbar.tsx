@@ -42,7 +42,7 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
       if (user?.sub) {
         try {
           const clientId = user.sub.split('|')[1] || user.sub;
-          const response = await apiService.get(`/api/billing/${clientId}`);
+          const response = await apiService.get(`/api/stripe/billing/${clientId}`);
           
           if (response.data.subscription?.tier) {
             // Capitalize tier name (e.g., "manager" -> "Manager")
