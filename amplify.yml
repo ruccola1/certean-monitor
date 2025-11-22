@@ -1,0 +1,31 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "Installing dependencies..."
+        - npm ci
+        # Fetch env vars from AWS Secrets Manager if Amplify Console vars don't work
+        # Set SECRET_NAME environment variable in Amplify Console to enable this
+        - |
+          if [ -n "${SECRET_NAME}" ] && [ -f scripts/fetch-env-from-secrets.sh ]; then
+            chmod +x scripts/fetch-env-from-secrets.sh
+            source scripts/fetch-env-from-secrets.sh
+          fi
+    build:
+      commands:
+        - echo "Building application..."
+        - echo "Environment variables check:"
+        - echo "VITE_AUTH0_DOMAIN=${VITE_AUTH0_DOMAIN:-not-set}"
+        - echo "VITE_AUTH0_CLIENT_ID=${VITE_AUTH0_CLIENT_ID:-not-set}"
+        - echo "VITE_API_BASE_URL=${VITE_API_BASE_URL:-not-set}"
+        - echo "VITE_CERTEAN_API_KEY=${VITE_CERTEAN_API_KEY:-not-set}"
+        - npm run build
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+
