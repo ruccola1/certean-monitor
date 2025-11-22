@@ -51,7 +51,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
           {
             name,
             description: fullDescription,
-            type,
+            type: (type === 'new' ? 'future' : type) as 'existing' | 'future' | 'imaginary', // Map 'new' to 'future' to match Product type
             urls: urls.split(',').map(url => url.trim()).filter(url => url),
             markets: markets.split(',').map(market => market.trim().toUpperCase()).filter(market => market),
             uploaded_files: uploadedFiles.map(f => f.name),

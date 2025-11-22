@@ -201,7 +201,7 @@ export default function Products() {
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [pollingInterval, setPollingInterval] = useState<ReturnType<typeof setTimeout> | null>(null);
+  // const [pollingInterval, setPollingInterval] = useState<ReturnType<typeof setTimeout> | null>(null);
   // Single state to track which step is expanded (only one at a time)
   const [expandedStep, setExpandedStep] = useState<{ productId: string; stepNumber: number } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; productId: string; productName: string }>({
@@ -244,8 +244,6 @@ export default function Products() {
     const interval = setInterval(() => {
       fetchProducts();
     }, 5000);
-    
-    setPollingInterval(interval);
 
     return () => {
       if (interval) clearInterval(interval);
@@ -336,19 +334,6 @@ export default function Products() {
   const handleProductAdded = () => {
     setShowAddDialog(false);
     fetchProducts(); // Refresh the list
-  };
-
-  const handleDiscardSource = async (productId: string, sourceIndex: number) => {
-    try {
-      // Update the product to mark the source as discarded
-      await apiService.getInstance().patch(`/api/products/${productId}/discard-source`, {
-        sourceIndex
-      });
-      console.log('Source discarded for product:', productId, 'index:', sourceIndex);
-      fetchProducts();
-    } catch (error) {
-      console.error('Failed to discard source:', error);
-    }
   };
 
   const handleRemoveCategory = async (productId: string, category: string) => {
@@ -1200,11 +1185,9 @@ export default function Products() {
                                               <div className="space-y-1.5">
                                                 {element.updates.map((update: any, idx: number) => {
                                                   const title = update?.title || '';
-                                                  const updateType = update?.type || 'Update';
                                                   const updateDate = update?.update_date || update?.date || '';
                                                   const description = update?.description || update?.update || '';
                                                   const impact = update?.impact || '';
-                                                  const validity = update?.validity || '';
                                                   const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
                                                   return (
@@ -1305,11 +1288,9 @@ export default function Products() {
                                               <div className="space-y-1.5">
                                                 {element.updates.map((update: any, idx: number) => {
                                                   const title = update?.title || '';
-                                                  const updateType = update?.type || 'Update';
                                                   const updateDate = update?.update_date || update?.date || '';
                                                   const description = update?.description || update?.update || '';
                                                   const impact = update?.impact || '';
-                                                  const validity = update?.validity || '';
                                                   const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
                                                   return (
@@ -1410,11 +1391,9 @@ export default function Products() {
                                               <div className="space-y-1.5">
                                                 {element.updates.map((update: any, idx: number) => {
                                                   const title = update?.title || '';
-                                                  const updateType = update?.type || 'Update';
                                                   const updateDate = update?.update_date || update?.date || '';
                                                   const description = update?.description || update?.update || '';
                                                   const impact = update?.impact || '';
-                                                  const validity = update?.validity || '';
                                                   const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
                                                   return (

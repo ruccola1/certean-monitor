@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { SUBSCRIPTION_PLANS, getPlanById } from '@/config/subscriptionPlans';
+import { getPlanById } from '@/config/subscriptionPlans';
 import type { Subscription, Invoice, UsageStats } from '@/types/subscription';
 import { apiService } from '@/services/api';
 
