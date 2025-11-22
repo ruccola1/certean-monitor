@@ -1,5 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react';
-import { Bell, User, Settings, LogOut, CheckCircle, XCircle, X } from 'lucide-react';
+import { Bell, User, Settings, LogOut, CheckCircle, XCircle, X, Menu } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,11 @@ import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { apiService } from '@/services/api';
 
-export default function Topbar() {
+interface TopbarProps {
+  onMobileMenuToggle?: () => void;
+}
+
+export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
   const { user, logout } = useAuth0();
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAll } = useNotificationContext();
   const navigate = useNavigate();
@@ -67,7 +71,16 @@ export default function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between bg-background px-4 md:px-6 border-b border-gray-300">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
+        {/* Hamburger Menu - Mobile Only */}
+        <button
+          onClick={onMobileMenuToggle}
+          className="lg:hidden p-2 hover:bg-gray-100 transition-colors"
+          aria-label="Toggle Menu"
+        >
+          <Menu className="h-6 w-6 text-[hsl(var(--dashboard-link-color))]" />
+        </button>
+        
         <h2 className="text-sm text-[hsl(var(--dashboard-link-color))]">
           <span className="font-bold">{clientName}</span>
           {subscriptionTier && (

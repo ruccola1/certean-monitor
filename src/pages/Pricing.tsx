@@ -60,14 +60,14 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen bg-dashboard-view-background p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-dashboard-view-background p-4 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-4 md:space-y-8">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] mb-4">
+          <h1 className="text-2xl md:text-3xl font-bold text-[hsl(var(--dashboard-link-color))] mb-3 md:mb-4">
             Choose Your Plan
           </h1>
-          <p className="text-[15px] text-gray-600 max-w-2xl mx-auto">
+          <p className="text-sm md:text-[15px] text-gray-600 max-w-2xl mx-auto">
             Select the plan that best fits your compliance monitoring needs. 
             Upgrade or downgrade at any time.
           </p>
@@ -79,7 +79,7 @@ export default function Pricing() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {SUBSCRIPTION_PLANS.map((plan) => {
             const isPopular = plan.id === 'manager';
             const isEnterprise = plan.id === 'enterprise';

@@ -9,6 +9,8 @@ export interface Product {
   step0Status: StepStatus;
   step1Status: StepStatus;
   step2Status: StepStatus;
+  step3Status: StepStatus;
+  step4Status: StepStatus;
   components: Component[];
   createdAt: string;
   updatedAt: string;
@@ -68,4 +70,5 @@ export interface ComplianceUpdate {
   source?: string;
   type: 'deadline' | 'revision' | 'new_requirement';
 }
+
 

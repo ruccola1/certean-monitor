@@ -163,16 +163,16 @@ export default function Dashboard() {
   }, 0);
 
   return (
-    <div className="min-h-screen bg-dashboard-view-background p-8">
-      <div className="max-w-7xl space-y-8">
+    <div className="min-h-screen bg-dashboard-view-background p-4 md:p-8">
+      <div className="max-w-7xl space-y-4 md:space-y-8">
         <div>
-          <h1 className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome Nicolas at Supercase</h1>
-          <p className="text-[15px] text-[hsl(var(--dashboard-link-color))] mt-2">
+          <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome Nicolas at Supercase</h1>
+          <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
             Your compliance monitoring dashboard
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           <Card className="bg-white border-0">
             <CardHeader>
               <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Products</CardTitle>
@@ -267,16 +267,13 @@ export default function Dashboard() {
 
         {/* Compliance Updates Timeline Chart */}
         <Card className="bg-white border-0">
-          <CardHeader>
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
               Product-Related Compliance Updates
             </CardTitle>
-            <CardDescription className="text-sm text-gray-500">
-              10-year view of compliance updates with current month in the center
-            </CardDescription>
           </CardHeader>
           {chartData.length > 0 ? (
-            <CardContent>
+            <CardContent className="pt-2 pb-4 px-4">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart 
                   data={chartData} 
@@ -333,7 +330,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </CardContent>
           ) : (
-            <CardContent className="py-12 text-center">
+            <CardContent className="py-8 text-center">
               <p className="text-gray-500 text-sm">No compliance updates tracked yet. Complete Step 4 on your products to see data.</p>
             </CardContent>
           )}
@@ -431,4 +428,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
 

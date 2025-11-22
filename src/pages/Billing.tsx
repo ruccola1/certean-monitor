@@ -89,26 +89,26 @@ export default function Billing() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dashboard-view-background p-8 flex items-center justify-center">
+      <div className="min-h-screen bg-dashboard-view-background p-4 md:p-8 flex items-center justify-center">
         <p className="text-gray-600">Loading billing information...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-dashboard-view-background p-8">
-      <div className="max-w-7xl space-y-8">
+    <div className="min-h-screen bg-dashboard-view-background p-4 md:p-8">
+      <div className="max-w-7xl space-y-4 md:space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">
+          <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">
             Billing & Subscription
           </h1>
-          <p className="text-[15px] text-gray-600 mt-2">
+          <p className="text-sm md:text-[15px] text-gray-600 mt-1 md:mt-2">
             Manage your subscription, view invoices, and track usage
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
           {/* Current Plan */}
           <div className="lg:col-span-2 space-y-6">
             {/* Plan Card */}
@@ -142,7 +142,7 @@ export default function Billing() {
                 {/* Features */}
                 <div>
                   <p className="text-xs font-semibold text-gray-600 mb-2">PLAN FEATURES</p>
-                  <ul className="grid grid-cols-2 gap-2">
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {currentPlan?.features.map((feature, idx) => (
                       <li key={idx} className="text-sm text-gray-700">
                         • {feature}

@@ -274,3 +274,4 @@ Open http://localhost:5173 to see the placeholder dashboard.
 
 This is a substantial project. The foundation is solid and ready for the core workflow implementation.
 
+

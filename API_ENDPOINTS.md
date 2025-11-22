@@ -649,3 +649,4 @@ Batch emails based on frequency setting.
 
 This completes the API specification for **certean-monitor** frontend integration.
 
+

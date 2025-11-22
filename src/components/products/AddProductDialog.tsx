@@ -54,8 +54,8 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
             type,
             urls: urls.split(',').map(url => url.trim()).filter(url => url),
             markets: markets.split(',').map(market => market.trim().toUpperCase()).filter(market => market),
-            uploaded_files: uploadedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })),
-            uploaded_images: uploadedImages.map(f => ({ name: f.name, size: f.size, type: f.type })),
+            uploaded_files: uploadedFiles.map(f => f.name),
+            uploaded_images: uploadedImages.map(f => f.name),
           }
         ]
       };

@@ -2,7 +2,9 @@ import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, RefreshCw, XCircle, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, RefreshCw, XCircle, Eye, EyeOff, ExternalLink, Bell, MoreVertical, Edit, Copy, Share2 } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
@@ -17,6 +19,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Component {
   id: string;
@@ -130,7 +139,18 @@ interface Step4Results {
   raw_response?: string;
 }
 
-interface Product {
+interface Step3Payload {
+  element_mappings: Array<{
+    step2_element_name: string;
+    step2_designation: string;
+    shared_db_id: string | null;
+    shared_db_name: string | null;
+    source_official: string | null;
+    found: boolean;
+  }>;
+}
+
+interface ProductDetails {
   id: string;
   name: string;
   description: string;
@@ -146,6 +166,7 @@ interface Product {
   step0Results?: Step0Results;
   step1Results?: Step1Results;
   step2Results?: Step2Results;
+  step3Payload?: Step3Payload;
   step3Results?: Step3Results;
   step4Results?: Step4Results;
   components?: Component[];
@@ -177,10 +198,10 @@ interface Product {
 }
 
 export default function Products() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<ReturnType<typeof setTimeout> | null>(null);
   // Single state to track which step is expanded (only one at a time)
   const [expandedStep, setExpandedStep] = useState<{ productId: string; stepNumber: number } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; productId: string; productName: string }>({
@@ -207,7 +228,7 @@ export default function Products() {
       }
 
       const response = await productService.getAll();
-      setProducts(response.data || []);
+      setProducts((response.data || []) as unknown as ProductDetails[]);
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -490,21 +511,21 @@ export default function Products() {
   }
 
   return (
-    <div className="min-h-screen bg-dashboard-view-background p-8">
-      <div className="max-w-7xl space-y-8">
+    <div className="min-h-screen bg-dashboard-view-background p-4 md:p-8">
+      <div className="max-w-7xl space-y-4 md:space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">
+            <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">
               Products
             </h1>
-            <p className="text-[15px] text-gray-500 mt-2">
+            <p className="text-sm md:text-[15px] text-gray-500 mt-1 md:mt-2">
               Manage your products and their compliance status
             </p>
           </div>
           <Button
             onClick={() => setShowAddDialog(true)}
-            className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white"
+            className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Product
@@ -562,7 +583,7 @@ export default function Products() {
                         })()}
                       </p>
 
-                      <div className="flex items-center gap-6 text-sm">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 text-sm">
                         <div>
                           <span className="text-gray-500">Type:</span>
                           <span className="ml-2 text-[hsl(var(--dashboard-link-color))] font-medium">
@@ -579,8 +600,8 @@ export default function Products() {
 
                       {/* Pipeline Status - Horizontal Step Boxes */}
                       <div className="mt-4 pt-4 border-t border-gray-100">
-                        {/* Step Boxes - Horizontal Layout - All 5 steps (1 & 3 are status-only markers) */}
-                        <div className="grid grid-cols-5 gap-2 mb-4">
+                        {/* Step Boxes - Responsive Layout - All 5 steps (1 & 3 are status-only markers) */}
+                        <div className="grid grid-cols-5 gap-1 sm:gap-2 mb-4">
                           {/* Step 0 Box - Product Details */}
                           <button
                             onClick={() => {
@@ -590,14 +611,14 @@ export default function Products() {
                                 setExpandedStep({ productId: product.id, stepNumber: 0 });
                               }
                             }}
-                            className={`border-0 p-4 transition-colors text-left relative ${
+                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative ${
                               expandedStep?.productId === product.id && expandedStep?.stepNumber === 0
                                 ? 'bg-gray-200'
                                 : 'bg-white hover:bg-gray-50'
                             }`}
                           >
                             <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-xs font-semibold text-gray-700 mb-2">Product Details</span>
+                              <span className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1 sm:mb-2 text-center leading-tight">Product Details</span>
                               {getStatusBadge(product.step0Status)}
                               {(product.step0Status === 'running' || product.step0Status === 'processing') && (
                                 <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
@@ -637,10 +658,10 @@ export default function Products() {
                             )}
                           </button>
 
-                          {/* Step 1 Marker - Research Sources (Status Only) */}
-                          <div className="border-0 p-4 bg-gray-100">
+                          {/* Step 1 Marker - Compliance Assessment (Status Only) */}
+                          <div className="border-0 p-2 sm:p-4 bg-gray-100">
                             <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-xs font-semibold text-gray-500 mb-2">Research Sources</span>
+                              <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1 sm:mb-2 text-center leading-tight">Compliance Assessment</span>
                               {getStatusBadge(product.step1Status)}
                               {(product.step1Status === 'running' || product.step1Status === 'processing') && (
                                 <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
@@ -657,14 +678,14 @@ export default function Products() {
                                 setExpandedStep({ productId: product.id, stepNumber: 2 });
                               }
                             }}
-                            className={`border-0 p-4 transition-colors text-left relative ${
+                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative ${
                               expandedStep?.productId === product.id && expandedStep?.stepNumber === 2
                                 ? 'bg-gray-200'
                                 : 'bg-white hover:bg-gray-50'
                             }`}
                           >
                             <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-xs font-semibold text-gray-700 mb-2">Compliance Elements</span>
+                              <span className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1 sm:mb-2 text-center leading-tight">Compliance Elements</span>
                               {getStatusBadge(product.step2Status)}
                               {(product.step2Status === 'running' || product.step2Status === 'processing') && (
                                 <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
@@ -705,9 +726,9 @@ export default function Products() {
                           </button>
 
                           {/* Step 3 Marker - Element Mapping (Status Only) */}
-                          <div className="border-0 p-4 bg-gray-100">
+                          <div className="border-0 p-2 sm:p-4 bg-gray-100">
                             <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-xs font-semibold text-gray-500 mb-2">Element Mapping</span>
+                              <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1 sm:mb-2 text-center leading-tight">Element Mapping</span>
                               {getStatusBadge(product.step3Status)}
                               {(product.step3Status === 'running' || product.step3Status === 'processing') && (
                                 <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
@@ -724,14 +745,14 @@ export default function Products() {
                                 setExpandedStep({ productId: product.id, stepNumber: 4 });
                               }
                             }}
-                            className={`border-0 p-4 transition-colors text-left relative ${
+                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative ${
                               expandedStep?.productId === product.id && expandedStep?.stepNumber === 4
                                 ? 'bg-gray-200'
                                 : 'bg-white hover:bg-gray-50'
                             }`}
                           >
                             <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-xs font-semibold text-gray-700 mb-2">Compliance Updates</span>
+                              <span className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1 sm:mb-2 text-center leading-tight">Compliance Updates</span>
                               {getStatusBadge(product.step4Status)}
                               {(product.step4Status === 'running' || product.step4Status === 'processing') && (
                                 <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
@@ -920,14 +941,14 @@ export default function Products() {
                               
                               {/* Fallback: Show raw text if no components */}
                               {/* Always show full product decomposition if available */}
-                              {(product.step0Results?.product_decomposition || product.step0Payload?.product_decomposition) && (
+                              {product.step0Results?.product_decomposition && (
                                 <div>
                                   <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
                                     Complete Technical Product Decomposition
                                   </h5>
                                   <div className="bg-dashboard-view-background p-4 max-h-[600px] overflow-y-auto">
                                     <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
-                                      {product.step0Results?.product_decomposition || product.step0Payload?.product_decomposition}
+                                      {product.step0Results?.product_decomposition}
                                     </pre>
                                   </div>
                                 </div>
@@ -970,39 +991,55 @@ export default function Products() {
 
                                   const renderElementColumn = (category: string, title: string) => (
                                     <div key={category}>
-                                      <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                        {title} ({grouped[category]?.length || 0})
+                                      <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
+                                        <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
+                                        <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+                                          {title}
                                       </h6>
-                                      <div className="space-y-2">
+                                        <span className="text-xs text-gray-400">({grouped[category]?.length || 0})</span>
+                                      </div>
+                                      <div className="space-y-4">
                                         {grouped[category]?.map((element: any, idx: number) => {
                                           const name = element?.element_name || element?.name || 'Unnamed';
                                           const designation = element?.element_designation || element?.designation || '';
                                           const description = element?.element_description_long || element?.description || '';
                                           const countries = element?.element_countries || element?.countries || [];
                                           
-                                          const elementUrl = element?.element_url || element?.url;
+                                          // Look up source URL from Step 3 mapping first
+                                          let elementUrl = element?.source_official || element?.element_url || element?.url;
+                                          if (!elementUrl && product.step3Payload?.element_mappings) {
+                                            const mapping = product.step3Payload.element_mappings.find(
+                                              m => m.step2_element_name === name || m.step2_designation === designation
+                                            );
+                                            if (mapping) {
+                                              elementUrl = mapping.source_official;
+                                            }
+                                          }
                                           
                                           return (
-                                            <div key={idx} className="bg-dashboard-view-background p-3">
-                                              <div className="flex items-start gap-2">
-                                                <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
-                                                <div className="flex-1">
-                                                  <div className="flex items-center gap-2 mb-1">
-                                                    <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
-                                                      {name}
-                                                    </h6>
+                                            <div key={idx} className="relative bg-white p-3 transition-colors hover:bg-gray-50">
+                                              {/* Link icon in top right corner - only show if URL exists */}
                                                     {elementUrl && (
+                                                <div className="absolute top-2 right-2">
                                                       <a 
                                                         href={elementUrl} 
                                                         target="_blank" 
                                                         rel="noopener noreferrer"
-                                                        className="text-[hsl(var(--dashboard-link-color))] hover:text-[hsl(var(--dashboard-link-color))]/80"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="text-blue-500 hover:text-blue-600"
                                                         title="View compliance element details"
                                                       >
-                                                        <ExternalLink className="w-3 h-3" />
+                                                    <ExternalLink className="w-3.5 h-3.5" />
                                                       </a>
-                                                    )}
                                                   </div>
+                                              )}
+                                              
+                                              <div className="flex items-start gap-2 pr-6">
+                                                <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
+                                                <div className="flex-1">
+                                                  <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                    {name}
+                                                  </h6>
                                                   {designation && (
                                                     <p className="text-xs text-gray-500 mb-2">
                                                       {designation}
@@ -1032,7 +1069,7 @@ export default function Products() {
                                   );
 
                                   return (
-                                    <div className="grid grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                       {renderElementColumn('legislation', 'Legislation')}
                                       {renderElementColumn('standard', 'Standards')}
                                       {renderElementColumn('marking', 'Markings')}
@@ -1063,6 +1100,19 @@ export default function Products() {
                               
                               {product.step4Results.compliance_updates && Array.isArray(product.step4Results.compliance_updates) && product.step4Results.compliance_updates.length > 0 ? (
                                 (() => {
+                                  // Helper function to filter updates by date
+                                  const today = new Date();
+                                  today.setHours(0, 0, 0, 0);
+                                  
+                                  const filterUpdatesByDate = (updates: any[], isFuture: boolean) => {
+                                    return updates.filter((update: any) => {
+                                      const updateDate = update?.update_date || update?.date || '';
+                                      if (!updateDate) return !isFuture; // No date = show in previous
+                                      const date = new Date(updateDate);
+                                      return isFuture ? date >= today : date < today;
+                                    });
+                                  };
+                                  
                                   // Group updates by regulation/element
                                   const updatesByElement: { [key: string]: any[] } = {};
                                   
@@ -1074,12 +1124,12 @@ export default function Products() {
                                     updatesByElement[regulation].push(update);
                                   });
 
-                                  // Sort updates within each element by date descending
+                                  // Sort updates within each element by date ascending (oldest first)
                                   Object.keys(updatesByElement).forEach(key => {
                                     updatesByElement[key].sort((a: any, b: any) => {
                                       const dateA = a?.update_date || a?.date || '';
                                       const dateB = b?.update_date || b?.date || '';
-                                      return dateB.localeCompare(dateA); // Descending
+                                      return dateA.localeCompare(dateB); // Ascending
                                     });
                                   });
 
@@ -1129,20 +1179,25 @@ export default function Products() {
                                     }
                                   });
 
-                                  return (
-                                    <div className="grid grid-cols-3 gap-4">
+                                  // Function to render columns for a given set of updates (filtered by date)
+                                  const renderColumns = (legislationData: { name: string; updates: any[] }[], standardsData: { name: string; updates: any[] }[], markingsData: { name: string; updates: any[] }[]) => (
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                       {/* Legislation Column */}
                                       <div>
-                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                          Legislation ({legislation.length})
+                                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
+                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
+                                          <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+                                            Legislation
                                         </h6>
-                                        <div className="space-y-3">
-                                          {legislation.map((element, elIdx) => (
-                                            <div key={elIdx} className="bg-white border-0 p-3">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          <span className="text-xs text-gray-400">({legislationData.length})</span>
+                                        </div>
+                                        <div className="space-y-4">
+                                          {legislationData.map((element, elIdx) => (
+                                            <div key={elIdx} className="space-y-2">
+                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] uppercase tracking-wide mb-2">
                                                 {element.name}
                                               </h6>
-                                              <div className="space-y-2">
+                                              <div className="space-y-1.5">
                                                 {element.updates.map((update: any, idx: number) => {
                                                   const title = update?.title || '';
                                                   const updateType = update?.type || 'Update';
@@ -1150,32 +1205,80 @@ export default function Products() {
                                                   const description = update?.description || update?.update || '';
                                                   const impact = update?.impact || '';
                                                   const validity = update?.validity || '';
+                                                  const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
                                                   return (
-                                                    <div key={idx} className="bg-dashboard-view-background p-2 border-l-2 border-blue-500">
-                                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                        {impact && (
-                                                          <Badge className={`text-xs border-0 ${
-                                                            impact.toUpperCase() === 'HIGH' ? 'bg-red-100 text-red-700' :
-                                                            impact.toUpperCase() === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-green-100 text-green-700'
+                                                    <TooltipProvider key={idx}>
+                                                      <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                          <div className={`relative bg-white p-3 border-l-4 cursor-pointer transition-colors hover:bg-gray-50 ${
+                                                            impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
+                                                            impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
+                                                            impact ? 'border-green-500' : 'border-blue-500'
                                                           }`}>
-                                                            {impact}
-                                                          </Badge>
-                                                        )}
-                                                        {updateDate && (
-                                                          <span className="text-xs text-gray-500">{updateDate}</span>
-                                                        )}
+                                                            {/* Link icon in top right corner - only show if URL exists */}
+                                                            {sourceUrl && (
+                                                              <div className="absolute top-2 right-2">
+                                                                <a 
+                                                                  href={sourceUrl} 
+                                                                  target="_blank" 
+                                                                  rel="noopener noreferrer"
+                                                                  onClick={(e) => e.stopPropagation()}
+                                                                  className="text-blue-500 hover:text-blue-600"
+                                                                  title="View update source"
+                                                                >
+                                                                  <ExternalLink className="w-3.5 h-3.5" />
+                                                                </a>
+                                                              </div>
+                                                            )}
+                                                            
+                                                            <div className="flex items-start gap-3 pr-6">
+                                                              <Bell className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                              <div className="flex-1 min-w-0">
+                                                                <div className="mb-1.5">
+                                                                  {updateDate && (() => {
+                                                                    const today = new Date();
+                                                                    today.setHours(0, 0, 0, 0);
+                                                                    const targetDate = new Date(updateDate);
+                                                                    targetDate.setHours(0, 0, 0, 0);
+                                                                    const diffTime = targetDate.getTime() - today.getTime();
+                                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                                    
+                                                                    let daysText = '';
+                                                                    if (diffDays > 0) {
+                                                                      daysText = `${diffDays}d`;
+                                                                    } else if (diffDays < 0) {
+                                                                      daysText = `${Math.abs(diffDays)}d ago`;
+                                                                    } else {
+                                                                      daysText = 'today';
+                                                                    }
+                                                                    
+                                                                    return (
+                                                                      <span className="text-xs text-gray-500">
+                                                                        {updateDate} <span className="text-[10px] text-gray-400 ml-1">({daysText})</span>
+                                                                      </span>
+                                                                    );
+                                                                  })()}
                                                       </div>
-                                                      <p className="text-xs font-semibold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                          <p className="text-[13px] font-semibold text-[hsl(var(--dashboard-link-color))] leading-snug mb-1.5">
                                                         {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
                                                       </p>
-                                                      {description && (
-                                                        <p className="text-xs text-gray-600">
-                                                          {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                                {description && title && (
+                                                                  <p className="text-xs text-gray-600 leading-relaxed">
+                                                                    {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
                                                         </p>
                                                       )}
                                                     </div>
+                                                            </div>
+                                                          </div>
+                                                        </TooltipTrigger>
+                                                        {impact && (
+                                                          <TooltipContent>
+                                                            <p className="text-xs">{impact.toUpperCase()} Impact</p>
+                                                          </TooltipContent>
+                                                        )}
+                                                      </Tooltip>
+                                                    </TooltipProvider>
                                                   );
                                                 })}
                                               </div>
@@ -1186,16 +1289,20 @@ export default function Products() {
 
                                       {/* Standards Column */}
                                       <div>
-                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                          Standards ({standards.length})
+                                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
+                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
+                                          <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+                                            Standards
                                         </h6>
-                                        <div className="space-y-3">
-                                          {standards.map((element, elIdx) => (
-                                            <div key={elIdx} className="bg-white border-0 p-3">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          <span className="text-xs text-gray-400">({standardsData.length})</span>
+                                        </div>
+                                        <div className="space-y-4">
+                                          {standardsData.map((element, elIdx) => (
+                                            <div key={elIdx} className="space-y-2">
+                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] uppercase tracking-wide mb-2">
                                                 {element.name}
                                               </h6>
-                                              <div className="space-y-2">
+                                              <div className="space-y-1.5">
                                                 {element.updates.map((update: any, idx: number) => {
                                                   const title = update?.title || '';
                                                   const updateType = update?.type || 'Update';
@@ -1203,32 +1310,80 @@ export default function Products() {
                                                   const description = update?.description || update?.update || '';
                                                   const impact = update?.impact || '';
                                                   const validity = update?.validity || '';
+                                                  const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
                                                   return (
-                                                    <div key={idx} className="bg-dashboard-view-background p-2 border-l-2 border-blue-500">
-                                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                        {impact && (
-                                                          <Badge className={`text-xs border-0 ${
-                                                            impact.toUpperCase() === 'HIGH' ? 'bg-red-100 text-red-700' :
-                                                            impact.toUpperCase() === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-green-100 text-green-700'
+                                                    <TooltipProvider key={idx}>
+                                                      <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                          <div className={`relative bg-white p-3 border-l-4 cursor-pointer transition-colors hover:bg-gray-50 ${
+                                                            impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
+                                                            impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
+                                                            impact ? 'border-green-500' : 'border-blue-500'
                                                           }`}>
-                                                            {impact}
-                                                          </Badge>
-                                                        )}
-                                                        {updateDate && (
-                                                          <span className="text-xs text-gray-500">{updateDate}</span>
-                                                        )}
+                                                            {/* Link icon in top right corner - only show if URL exists */}
+                                                            {sourceUrl && (
+                                                              <div className="absolute top-2 right-2">
+                                                                <a 
+                                                                  href={sourceUrl} 
+                                                                  target="_blank" 
+                                                                  rel="noopener noreferrer"
+                                                                  onClick={(e) => e.stopPropagation()}
+                                                                  className="text-blue-500 hover:text-blue-600"
+                                                                  title="View update source"
+                                                                >
+                                                                  <ExternalLink className="w-3.5 h-3.5" />
+                                                                </a>
+                                                              </div>
+                                                            )}
+                                                            
+                                                            <div className="flex items-start gap-3 pr-6">
+                                                              <Bell className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                              <div className="flex-1 min-w-0">
+                                                                <div className="mb-1.5">
+                                                                  {updateDate && (() => {
+                                                                    const today = new Date();
+                                                                    today.setHours(0, 0, 0, 0);
+                                                                    const targetDate = new Date(updateDate);
+                                                                    targetDate.setHours(0, 0, 0, 0);
+                                                                    const diffTime = targetDate.getTime() - today.getTime();
+                                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                                    
+                                                                    let daysText = '';
+                                                                    if (diffDays > 0) {
+                                                                      daysText = `${diffDays}d`;
+                                                                    } else if (diffDays < 0) {
+                                                                      daysText = `${Math.abs(diffDays)}d ago`;
+                                                                    } else {
+                                                                      daysText = 'today';
+                                                                    }
+                                                                    
+                                                                    return (
+                                                                      <span className="text-xs text-gray-500">
+                                                                        {updateDate} <span className="text-[10px] text-gray-400 ml-1">({daysText})</span>
+                                                                      </span>
+                                                                    );
+                                                                  })()}
                                                       </div>
-                                                      <p className="text-xs font-semibold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                          <p className="text-[13px] font-semibold text-[hsl(var(--dashboard-link-color))] leading-snug mb-1.5">
                                                         {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
                                                       </p>
-                                                      {description && (
-                                                        <p className="text-xs text-gray-600">
-                                                          {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                                {description && title && (
+                                                                  <p className="text-xs text-gray-600 leading-relaxed">
+                                                                    {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
                                                         </p>
                                                       )}
                                                     </div>
+                                                            </div>
+                                                          </div>
+                                                        </TooltipTrigger>
+                                                        {impact && (
+                                                          <TooltipContent>
+                                                            <p className="text-xs">{impact.toUpperCase()} Impact</p>
+                                                          </TooltipContent>
+                                                        )}
+                                                      </Tooltip>
+                                                    </TooltipProvider>
                                                   );
                                                 })}
                                               </div>
@@ -1239,16 +1394,20 @@ export default function Products() {
 
                                       {/* Markings Column */}
                                       <div>
-                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                          Markings ({markings.length})
+                                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
+                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
+                                          <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+                                            Markings
                                         </h6>
-                                        <div className="space-y-3">
-                                          {markings.map((element, elIdx) => (
-                                            <div key={elIdx} className="bg-white border-0 p-3">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                          <span className="text-xs text-gray-400">({markingsData.length})</span>
+                                        </div>
+                                        <div className="space-y-4">
+                                          {markingsData.map((element, elIdx) => (
+                                            <div key={elIdx} className="space-y-2">
+                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] uppercase tracking-wide mb-2">
                                                 {element.name}
                                               </h6>
-                                              <div className="space-y-2">
+                                              <div className="space-y-1.5">
                                                 {element.updates.map((update: any, idx: number) => {
                                                   const title = update?.title || '';
                                                   const updateType = update?.type || 'Update';
@@ -1256,32 +1415,80 @@ export default function Products() {
                                                   const description = update?.description || update?.update || '';
                                                   const impact = update?.impact || '';
                                                   const validity = update?.validity || '';
+                                                  const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
                                                   return (
-                                                    <div key={idx} className="bg-dashboard-view-background p-2 border-l-2 border-blue-500">
-                                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                        {impact && (
-                                                          <Badge className={`text-xs border-0 ${
-                                                            impact.toUpperCase() === 'HIGH' ? 'bg-red-100 text-red-700' :
-                                                            impact.toUpperCase() === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-green-100 text-green-700'
+                                                    <TooltipProvider key={idx}>
+                                                      <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                          <div className={`relative bg-white p-3 border-l-4 cursor-pointer transition-colors hover:bg-gray-50 ${
+                                                            impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
+                                                            impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
+                                                            impact ? 'border-green-500' : 'border-blue-500'
                                                           }`}>
-                                                            {impact}
-                                                          </Badge>
-                                                        )}
-                                                        {updateDate && (
-                                                          <span className="text-xs text-gray-500">{updateDate}</span>
-                                                        )}
+                                                            {/* Link icon in top right corner - only show if URL exists */}
+                                                            {sourceUrl && (
+                                                              <div className="absolute top-2 right-2">
+                                                                <a 
+                                                                  href={sourceUrl} 
+                                                                  target="_blank" 
+                                                                  rel="noopener noreferrer"
+                                                                  onClick={(e) => e.stopPropagation()}
+                                                                  className="text-blue-500 hover:text-blue-600"
+                                                                  title="View update source"
+                                                                >
+                                                                  <ExternalLink className="w-3.5 h-3.5" />
+                                                                </a>
+                                                              </div>
+                                                            )}
+                                                            
+                                                            <div className="flex items-start gap-3 pr-6">
+                                                              <Bell className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                              <div className="flex-1 min-w-0">
+                                                                <div className="mb-1.5">
+                                                                  {updateDate && (() => {
+                                                                    const today = new Date();
+                                                                    today.setHours(0, 0, 0, 0);
+                                                                    const targetDate = new Date(updateDate);
+                                                                    targetDate.setHours(0, 0, 0, 0);
+                                                                    const diffTime = targetDate.getTime() - today.getTime();
+                                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                                    
+                                                                    let daysText = '';
+                                                                    if (diffDays > 0) {
+                                                                      daysText = `${diffDays}d`;
+                                                                    } else if (diffDays < 0) {
+                                                                      daysText = `${Math.abs(diffDays)}d ago`;
+                                                                    } else {
+                                                                      daysText = 'today';
+                                                                    }
+                                                                    
+                                                                    return (
+                                                                      <span className="text-xs text-gray-500">
+                                                                        {updateDate} <span className="text-[10px] text-gray-400 ml-1">({daysText})</span>
+                                                                      </span>
+                                                                    );
+                                                                  })()}
                                                       </div>
-                                                      <p className="text-xs font-semibold text-[hsl(var(--dashboard-link-color))] mb-1">
+                                                          <p className="text-[13px] font-semibold text-[hsl(var(--dashboard-link-color))] leading-snug mb-1.5">
                                                         {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
                                                       </p>
-                                                      {description && (
-                                                        <p className="text-xs text-gray-600">
-                                                          {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
+                                                                {description && title && (
+                                                                  <p className="text-xs text-gray-600 leading-relaxed">
+                                                                    {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
                                                         </p>
                                                       )}
                                                     </div>
+                                                            </div>
+                                                          </div>
+                                                        </TooltipTrigger>
+                                                        {impact && (
+                                                          <TooltipContent>
+                                                            <p className="text-xs">{impact.toUpperCase()} Impact</p>
+                                                          </TooltipContent>
+                                                        )}
+                                                      </Tooltip>
+                                                    </TooltipProvider>
                                                   );
                                                 })}
                                               </div>
@@ -1290,6 +1497,93 @@ export default function Products() {
                                         </div>
                                       </div>
                                     </div>
+                                  );
+
+                                  // Filter data for Future and Previous tabs
+                                  const futureLegislation = legislation.map(el => ({
+                                    name: el.name,
+                                    updates: filterUpdatesByDate(el.updates, true)
+                                  })).filter(el => el.updates.length > 0);
+
+                                  const futureStandards = standards.map(el => ({
+                                    name: el.name,
+                                    updates: filterUpdatesByDate(el.updates, true)
+                                  })).filter(el => el.updates.length > 0);
+
+                                  const futureMarkings = markings.map(el => ({
+                                    name: el.name,
+                                    updates: filterUpdatesByDate(el.updates, true)
+                                  })).filter(el => el.updates.length > 0);
+
+                                  // Previous updates - sorted descending (newest first)
+                                  const previousLegislation = legislation.map(el => ({
+                                    name: el.name,
+                                    updates: filterUpdatesByDate(el.updates, false).sort((a: any, b: any) => {
+                                      const dateA = a?.update_date || a?.date || '';
+                                      const dateB = b?.update_date || b?.date || '';
+                                      return dateB.localeCompare(dateA); // Descending
+                                    })
+                                  })).filter(el => el.updates.length > 0);
+
+                                  const previousStandards = standards.map(el => ({
+                                    name: el.name,
+                                    updates: filterUpdatesByDate(el.updates, false).sort((a: any, b: any) => {
+                                      const dateA = a?.update_date || a?.date || '';
+                                      const dateB = b?.update_date || b?.date || '';
+                                      return dateB.localeCompare(dateA); // Descending
+                                    })
+                                  })).filter(el => el.updates.length > 0);
+
+                                  const previousMarkings = markings.map(el => ({
+                                    name: el.name,
+                                    updates: filterUpdatesByDate(el.updates, false).sort((a: any, b: any) => {
+                                      const dateA = a?.update_date || a?.date || '';
+                                      const dateB = b?.update_date || b?.date || '';
+                                      return dateB.localeCompare(dateA); // Descending
+                                    })
+                                  })).filter(el => el.updates.length > 0);
+
+                                  const futureCount = futureLegislation.reduce((sum, el) => sum + el.updates.length, 0) +
+                                                     futureStandards.reduce((sum, el) => sum + el.updates.length, 0) +
+                                                     futureMarkings.reduce((sum, el) => sum + el.updates.length, 0);
+
+                                  const previousCount = previousLegislation.reduce((sum, el) => sum + el.updates.length, 0) +
+                                                       previousStandards.reduce((sum, el) => sum + el.updates.length, 0) +
+                                                       previousMarkings.reduce((sum, el) => sum + el.updates.length, 0);
+
+                                  return (
+                                    <Tabs defaultValue="future" className="w-full">
+                                      <TabsList className="bg-gray-100 mb-6 h-11 gap-1">
+                                        <TabsTrigger value="future" className="data-[state=active]:bg-white px-6">
+                                          <span className="font-semibold">Future</span>
+                                          <span className="ml-2 text-xs text-gray-500">({futureCount})</span>
+                                        </TabsTrigger>
+                                        <TabsTrigger value="previous" className="data-[state=active]:bg-white px-6">
+                                          <span className="font-semibold">Previous</span>
+                                          <span className="ml-2 text-xs text-gray-500">({previousCount})</span>
+                                        </TabsTrigger>
+                                      </TabsList>
+                                      
+                                      <TabsContent value="future">
+                                        {futureCount > 0 ? (
+                                          renderColumns(futureLegislation, futureStandards, futureMarkings)
+                                        ) : (
+                                          <div className="text-center py-8 text-gray-500 text-sm">
+                                            No future updates available
+                                          </div>
+                                        )}
+                                      </TabsContent>
+                                      
+                                      <TabsContent value="previous">
+                                        {previousCount > 0 ? (
+                                          renderColumns(previousLegislation, previousStandards, previousMarkings)
+                                        ) : (
+                                          <div className="text-center py-8 text-gray-500 text-sm">
+                                            No previous updates available
+                                          </div>
+                                        )}
+                                      </TabsContent>
+                                    </Tabs>
                                   );
                                 })()
                               ) : (
@@ -1332,14 +1626,39 @@ export default function Products() {
                           Start Next
                         </Button>
                       )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => openDeleteDialog(product.id, product.name)}
-                        className="border-0 bg-red-50 text-red-600 hover:bg-red-100"
+                            className="border-0 bg-gray-50 text-gray-600 hover:bg-gray-100"
                       >
-                        <Trash2 className="w-4 h-4" />
+                            <MoreVertical className="w-4 h-4" />
                       </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="border-0">
+                          <DropdownMenuItem className="cursor-pointer">
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="cursor-pointer">
+                            <Copy className="w-4 h-4 mr-2" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="cursor-pointer">
+                            <Share2 className="w-4 h-4 mr-2" />
+                            Delegate
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="cursor-pointer text-red-600 focus:text-red-600"
+                            onClick={() => openDeleteDialog(product.id, product.name)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </CardContent>

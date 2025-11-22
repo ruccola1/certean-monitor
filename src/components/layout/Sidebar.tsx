@@ -30,12 +30,16 @@ const navItems: NavItem[] = [
   { icon: Settings, label: 'Settings', href: '/settings' },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  onMobileClose?: () => void;
+}
+
+export default function Sidebar({ onMobileClose }: SidebarProps) {
   const location = useLocation();
 
   return (
     <TooltipProvider>
-      <aside className="fixed left-0 top-0 z-40 h-screen w-16 border-r border-border bg-sidebar-gradient flex flex-col items-center py-4">
+      <aside className="h-screen w-16 border-r border-border bg-sidebar-gradient flex flex-col items-center py-4">
         {/* Logo */}
         <Link 
           to="/" 
@@ -84,6 +88,7 @@ export default function Sidebar() {
                 <TooltipTrigger asChild>
                   <Link
                     to={item.href}
+                    onClick={onMobileClose}
                     className={cn(
                       "flex items-center justify-center w-10 h-10 transition-colors",
                       isActive
