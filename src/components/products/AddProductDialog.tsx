@@ -41,6 +41,9 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
       const apiKey = import.meta.env.VITE_CERTEAN_API_KEY;
       if (apiKey) {
         apiService.setToken(apiKey);
+        console.log('API key set for authentication');
+      } else {
+        console.warn('VITE_CERTEAN_API_KEY not found in environment variables');
       }
 
       // Concatenate name with description (matching certean-ai frontend)
@@ -100,7 +103,43 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
       }
     } catch (err: any) {
       console.error('Error creating product:', err);
-      setError(err.response?.data?.message || 'Failed to create product. Please try again.');
+      
+      // Extract detailed error message
+      let errorMessage = 'Failed to create product. Please try again.';
+      
+      if (err.response) {
+        // Server responded with error
+        const status = err.response.status;
+        const data = err.response.data;
+        
+        if (data?.detail) {
+          errorMessage = Array.isArray(data.detail) 
+            ? data.detail.map((d: any) => d.msg || d.message || JSON.stringify(d)).join(', ')
+            : data.detail;
+        } else if (data?.message) {
+          errorMessage = data.message;
+        } else if (status === 401) {
+          errorMessage = 'Authentication failed. Please check your API key.';
+        } else if (status === 403) {
+          errorMessage = 'Access denied. Please check your permissions.';
+        } else if (status === 404) {
+          errorMessage = 'API endpoint not found. Please check the API URL.';
+        } else if (status === 422) {
+          errorMessage = 'Validation error. Please check your input fields.';
+        } else if (status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = `Error ${status}: ${data?.error || 'Unknown error'}`;
+        }
+      } else if (err.request) {
+        // Request was made but no response received
+        errorMessage = 'No response from server. Please check your network connection and API URL.';
+      } else if (err.message) {
+        // Error setting up the request
+        errorMessage = `Request error: ${err.message}`;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
