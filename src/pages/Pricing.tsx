@@ -36,8 +36,9 @@ export default function Pricing() {
           throw new Error('Plan not found or price ID missing');
         }
 
-        // Call backend to create Stripe Checkout session
-        const response = await apiService.post('/api/stripe/create-checkout-session', {
+        // Call billing service to create Stripe Checkout session
+        const { billingService } = await import('../services/billingService');
+        const response = await billingService.post<{ url: string; sessionId: string }>('/api/stripe/create-checkout-session', {
           price_id: plan.stripePriceId,
           client_id: 'supercase', // TODO: Get from user context
           user_email: user?.email || 'nicolas@supercase.se',
@@ -46,8 +47,8 @@ export default function Pricing() {
         });
 
         // Redirect to Stripe Checkout
-        if (response.data.url) {
-          window.location.href = response.data.url;
+        if (response.url) {
+          window.location.href = response.url;
         } else {
           throw new Error('No checkout URL returned');
         }

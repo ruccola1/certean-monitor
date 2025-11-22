@@ -201,6 +201,7 @@ export default function Products() {
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [productToDuplicate, setProductToDuplicate] = useState<ProductDetails | null>(null);
   // const [pollingInterval, setPollingInterval] = useState<ReturnType<typeof setTimeout> | null>(null);
   // Single state to track which step is expanded (only one at a time)
   const [expandedStep, setExpandedStep] = useState<{ productId: string; stepNumber: number } | null>(null);
@@ -333,6 +334,7 @@ export default function Products() {
 
   const handleProductAdded = () => {
     setShowAddDialog(false);
+    setProductToDuplicate(null); // Reset duplicate state
     fetchProducts(); // Refresh the list
   };
 
@@ -1620,7 +1622,13 @@ export default function Products() {
                             <Edit className="w-4 h-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer">
+                          <DropdownMenuItem 
+                            className="cursor-pointer"
+                            onClick={() => {
+                              setProductToDuplicate(product);
+                              setShowAddDialog(true);
+                            }}
+                          >
                             <Copy className="w-4 h-4 mr-2" />
                             Duplicate
                           </DropdownMenuItem>
@@ -1650,8 +1658,23 @@ export default function Products() {
       {/* Add Product Dialog */}
       <AddProductDialog
         open={showAddDialog}
-        onOpenChange={setShowAddDialog}
+        onOpenChange={(open) => {
+          setShowAddDialog(open);
+          if (!open) {
+            // Reset duplicate product when dialog closes
+            setProductToDuplicate(null);
+          }
+        }}
         onProductAdded={handleProductAdded}
+        initialProduct={productToDuplicate ? {
+          name: productToDuplicate.name,
+          description: productToDuplicate.description,
+          type: productToDuplicate.type as 'existing' | 'future' | 'imaginary',
+          urls: (productToDuplicate as any).urls || [],
+          markets: productToDuplicate.markets || [],
+          uploaded_files: (productToDuplicate as any).uploaded_files || [],
+          uploaded_images: (productToDuplicate as any).uploaded_images || [],
+        } : undefined}
       />
 
       {/* Delete Confirmation Dialog */}

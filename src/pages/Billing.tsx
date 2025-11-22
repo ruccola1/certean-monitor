@@ -21,12 +21,17 @@ export default function Billing() {
   const fetchBillingData = async () => {
     try {
       const clientId = 'supercase'; // TODO: Get from user context
-      const response = await apiService.get(`/api/stripe/billing/${clientId}`);
+      const { billingService } = await import('../services/billingService');
+      const response = await billingService.get<{
+        subscription: any;
+        invoices: any[];
+        usage: any;
+      }>(`/api/stripe/billing/${clientId}`);
       
-      if (response.data) {
-        setSubscription(response.data.subscription);
-        setInvoices(response.data.invoices || []);
-        setUsage(response.data.usage);
+      if (response) {
+        setSubscription(response.subscription);
+        setInvoices(response.invoices || []);
+        setUsage(response.usage);
       }
     } catch (error) {
       console.error('Failed to fetch billing data:', error);
@@ -55,13 +60,14 @@ export default function Billing() {
     }
 
     try {
-      const response = await apiService.post('/api/stripe/create-portal-session', {
+      const { billingService } = await import('../services/billingService');
+      const response = await billingService.post<{ url: string }>('/api/stripe/create-portal-session', {
         customer_id: subscription.stripeCustomerId,
         return_url: `${window.location.origin}/billing`
       });
 
-      if (response.data.url) {
-        window.location.href = response.data.url;
+      if (response?.url) {
+        window.location.href = response.url;
       }
     } catch (error) {
       console.error('Failed to open billing portal:', error);

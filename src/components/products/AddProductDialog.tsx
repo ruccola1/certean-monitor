@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,9 +18,18 @@ interface AddProductDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onProductAdded?: () => void;
+  initialProduct?: {
+    name?: string;
+    description?: string;
+    type?: 'existing' | 'future' | 'imaginary';
+    urls?: string[];
+    markets?: string[];
+    uploaded_files?: string[];
+    uploaded_images?: string[];
+  };
 }
 
-export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProductDialogProps) {
+export function AddProductDialog({ open, onOpenChange, onProductAdded, initialProduct }: AddProductDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'existing' | 'new'>('existing');
@@ -30,6 +39,54 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill form when initialProduct is provided or dialog opens
+  useEffect(() => {
+    if (initialProduct && open) {
+      // Extract name and description (description might be "name: description" format)
+      const fullDescription = initialProduct.description || '';
+      const namePrefix = initialProduct.name ? `${initialProduct.name}: ` : '';
+      
+      // If description starts with "name: ", remove it
+      let cleanDescription = fullDescription;
+      if (namePrefix && fullDescription.startsWith(namePrefix)) {
+        cleanDescription = fullDescription.substring(namePrefix.length);
+      }
+      
+      setName(initialProduct.name || '');
+      setDescription(cleanDescription);
+      
+      // Map type: 'future' -> 'new', 'imaginary' -> 'existing', 'existing' -> 'existing'
+      if (initialProduct.type === 'future') {
+        setType('new');
+      } else {
+        setType('existing');
+      }
+      
+      // Join arrays with commas
+      setUrls(initialProduct.urls?.join(', ') || '');
+      setMarkets(initialProduct.markets?.join(', ') || '');
+      
+      // Note: We can't re-upload files/images, so we leave those empty
+      // User can add new files if needed
+    } else if (!initialProduct && open) {
+      // Reset form when opening without initial product
+      setName('');
+      setDescription('');
+      setType('existing');
+      setUrls('');
+      setMarkets('');
+      setUploadedFiles([]);
+      setUploadedImages([]);
+    }
+  }, [initialProduct, open]);
+
+  // Reset error when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setError(null);
+    }
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,10 +207,10 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
       <DialogContent className="sm:max-w-[600px] bg-white border-0">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">
-            Add New Product
+            {initialProduct ? 'Duplicate Product' : 'Add New Product'}
           </DialogTitle>
           <DialogDescription className="text-sm text-gray-500">
-            Enter product details to begin compliance monitoring
+            {initialProduct ? 'Edit the product details and create a new product' : 'Enter product details to begin compliance monitoring'}
           </DialogDescription>
         </DialogHeader>
         
@@ -327,7 +384,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
               disabled={isSubmitting || !name || !description || !markets}
               className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white"
             >
-              {isSubmitting ? 'Adding...' : 'Add Product'}
+              {isSubmitting ? 'Adding...' : initialProduct ? 'Create Product' : 'Add Product'}
             </Button>
           </DialogFooter>
         </form>

@@ -42,11 +42,14 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
       if (user?.sub) {
         try {
           const clientId = user.sub.split('|')[1] || user.sub;
-          const response = await apiService.get(`/api/stripe/billing/${clientId}`);
+          const { billingService } = await import('../../services/billingService');
+          const response = await billingService.get<{
+            subscription?: { tier?: string };
+          }>(`/api/stripe/billing/${clientId}`);
           
-          if (response.data.subscription?.tier) {
+          if (response?.subscription?.tier) {
             // Capitalize tier name (e.g., "manager" -> "Manager")
-            const tierName = response.data.subscription.tier;
+            const tierName = response.subscription.tier;
             const capitalizedTier = tierName.charAt(0).toUpperCase() + tierName.slice(1);
             setSubscriptionTier(capitalizedTier);
           }
