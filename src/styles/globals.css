@@ -171,6 +171,22 @@
     border-radius: 0 !important;
     box-shadow: none !important;
   }
+  
+  /* Remove focus outlines from Recharts elements */
+  .recharts-wrapper *:focus,
+  .recharts-wrapper *:focus-visible,
+  .recharts-wrapper *:focus-within {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  
+  /* Remove selection borders from Recharts bars and elements */
+  .recharts-bar-rectangle,
+  .recharts-bar-rectangle:focus,
+  .recharts-bar-rectangle:active {
+    outline: none !important;
+    border: none !important;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans), sans-serif;

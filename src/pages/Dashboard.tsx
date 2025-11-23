@@ -42,6 +42,8 @@ export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [complianceUpdates, setComplianceUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<string>("");
+  const [summaryLoading, setSummaryLoading] = useState(true);
 
   useEffect(() => {
     fetchProducts();
@@ -51,6 +53,7 @@ export default function Dashboard() {
     const clientId = getClientId(user);
     if (clientId) {
       fetchComplianceUpdates();
+      fetchDashboardSummary();
     }
   }, [user]);
 
@@ -79,6 +82,38 @@ export default function Dashboard() {
       setComplianceUpdates(response.data?.updates || []);
     } catch (error) {
       console.error('Failed to fetch compliance updates:', error);
+    }
+  };
+
+  const fetchDashboardSummary = async () => {
+    try {
+      if (!user?.sub) {
+        console.log('No user loaded yet, skipping dashboard summary fetch');
+        return;
+      }
+      setSummaryLoading(true);
+      const clientId = getClientId(user);
+      console.log('Fetching dashboard summary for client:', clientId);
+      
+      // Use API key for authentication
+      const apiKey = import.meta.env.VITE_CERTEAN_API_KEY;
+      if (apiKey) {
+        apiService.setToken(apiKey);
+      }
+      
+      const response = await apiService.get(`/api/dashboard/summary?client_id=${encodeURIComponent(clientId)}`);
+      console.log('Dashboard summary response:', response.data);
+      
+      if (response.data?.success && response.data?.data?.text) {
+        setSummary(response.data.data.text);
+      } else {
+        setSummary("Analyzing your compliance updates...");
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard summary:', error);
+      setSummary("Unable to generate summary. Please check your products' compliance updates.");
+    } finally {
+      setSummaryLoading(false);
     }
   };
 
@@ -111,6 +146,29 @@ export default function Dashboard() {
       monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0 };
     }
     
+    // Create a lookup map of regulation names to compliance element types from products
+    // This maps the regulation name (from updates) to the compliance element type (from Step 2)
+    const regulationToTypeMap: { [key: string]: string } = {};
+    products.forEach(product => {
+      if (product.step2Results?.compliance_elements) {
+        product.step2Results.compliance_elements.forEach((element: any) => {
+          const elementName = element?.element_name || element?.name || '';
+          const elementType = (element?.element_type || element?.type || 'legislation').toLowerCase();
+          if (elementName) {
+            // Store both exact name and normalized versions for matching
+            regulationToTypeMap[elementName] = elementType;
+            regulationToTypeMap[elementName.toLowerCase()] = elementType;
+            // Also store designation if available
+            const designation = element?.element_designation || element?.designation || '';
+            if (designation) {
+              regulationToTypeMap[designation] = elementType;
+              regulationToTypeMap[designation.toLowerCase()] = elementType;
+            }
+          }
+        });
+      }
+    });
+    
     // Aggregate actual data from compliance updates
     complianceUpdates.forEach((update: any) => {
       const updateDate = update?.update_date || update?.date;
@@ -122,12 +180,31 @@ export default function Dashboard() {
         
         // Only include if within our 120-month range
         if (monthlyAggregation[yearMonth]) {
-          const updateType = (update?.type || '').toLowerCase();
+          // Get type from compliance element (regulation name) instead of update type
+          const regulation = update?.regulation || update?.element_name || '';
+          let elementType = regulationToTypeMap[regulation] || regulationToTypeMap[regulation.toLowerCase()];
           
-          // Categorize by type
-          if (updateType.includes('standard') || updateType === 'standard') {
+          // Fallback: if no exact match found, try to match by partial name
+          if (!elementType && regulation) {
+            const matchingKey = Object.keys(regulationToTypeMap).find(key => {
+              const regLower = regulation.toLowerCase();
+              const keyLower = key.toLowerCase();
+              return regLower.includes(keyLower) || keyLower.includes(regLower);
+            });
+            if (matchingKey) {
+              elementType = regulationToTypeMap[matchingKey];
+            }
+          }
+          
+          // Final fallback: use update type if available, otherwise default to legislation
+          if (!elementType) {
+            elementType = (update?.type || 'legislation').toLowerCase();
+          }
+          
+          // Categorize by compliance element type
+          if (elementType.includes('standard') || elementType === 'standard') {
             monthlyAggregation[yearMonth].standard++;
-          } else if (updateType.includes('marking') || updateType === 'marking') {
+          } else if (elementType.includes('marking') || elementType === 'marking') {
             monthlyAggregation[yearMonth].marking++;
           } else {
             monthlyAggregation[yearMonth].legislation++;
@@ -170,9 +247,19 @@ export default function Dashboard() {
       <div className="max-w-7xl space-y-4 md:space-y-8">
         <div>
           <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome Nicolas at Supercase</h1>
-          <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
-            Your compliance monitoring dashboard
-          </p>
+          {summaryLoading ? (
+            <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
+              Analyzing compliance updates...
+            </p>
+          ) : summary ? (
+            <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2 whitespace-pre-line">
+              {summary}
+            </p>
+          ) : (
+            <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
+              Your compliance monitoring dashboard
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -276,7 +363,7 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           {chartData.length > 0 ? (
-            <CardContent className="pt-2 pb-4 px-4">
+            <CardContent className="pt-2 pb-1 px-4">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart 
                   data={chartData} 
@@ -306,7 +393,7 @@ export default function Dashboard() {
                   />
                   <Legend 
                     iconType="rect"
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px', fontFamily: 'Geist Mono, monospace' }}
+                    wrapperStyle={{ fontSize: '11px', paddingTop: '0px', paddingBottom: '0px', fontFamily: 'Geist Mono, monospace' }}
                   />
                   <Bar 
                     dataKey="legislation" 

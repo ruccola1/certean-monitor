@@ -155,6 +155,55 @@ export const productService = {
     const { data } = await api.delete(`/api/components/${componentId}`);
     return data;
   },
+
+  // Update Step 0 payload and results
+  async updateStep0Payload(
+    productId: string,
+    step0Payload: any,
+    step0Results: any,
+    clientId?: string
+  ): Promise<ApiResponse<any>> {
+    let url = `/api/products/${productId}/update-step0-payload`;
+    if (clientId) {
+      url = `${url}?client_id=${encodeURIComponent(clientId)}`;
+    }
+    const { data } = await api.patch(url, {
+      step0Payload,
+      step0Results,
+    });
+    return data;
+  },
+
+  // Update Step 2 payload and results
+  async updateStep2Payload(
+    productId: string,
+    step2Payload: any,
+    step2Results: any,
+    clientId?: string
+  ): Promise<ApiResponse<any>> {
+    let url = `/api/products/${productId}/update-step2-payload`;
+    if (clientId) {
+      url = `${url}?client_id=${encodeURIComponent(clientId)}`;
+    }
+    const { data } = await api.patch(url, {
+      step2Payload,
+      step2Results,
+    });
+    return data;
+  },
+
+  // Search compliance elements from shared database
+  async searchComplianceElements(
+    query: string,
+    clientId?: string
+  ): Promise<ApiResponse<any>> {
+    let url = `/api/compliance-areas/compliance-elements/search?query=${encodeURIComponent(query)}`;
+    if (clientId) {
+      url = `${url}&client_id=${encodeURIComponent(clientId)}`;
+    }
+    const { data } = await api.get(url);
+    return data;
+  },
 };
 
 

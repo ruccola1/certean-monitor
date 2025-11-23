@@ -167,8 +167,10 @@ interface ProductDetails {
   step4Status: string;
   createdAt: string;
   step0Results?: Step0Results;
+  step0Payload?: any;
   step1Results?: Step1Results;
   step2Results?: Step2Results;
+  step2Payload?: any;
   step3Payload?: Step3Payload;
   step3Results?: Step3Results;
   step4Results?: Step4Results;
@@ -223,6 +225,22 @@ export default function Products() {
     productId: '',
     productName: ''
   });
+  
+  // Edit mode state
+  const [editingStep0, setEditingStep0] = useState<{ productId: string } | null>(null);
+  const [editingStep2, setEditingStep2] = useState<{ productId: string } | null>(null);
+  
+  // Step 0 edit state (local copies for editing)
+  const [step0EditData, setStep0EditData] = useState<any>(null);
+  
+  // Step 2 edit state
+  const [step2EditData, setStep2EditData] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [manualElementInput, setManualElementInput] = useState<string>('');
+  const [manualElementMarket, setManualElementMarket] = useState<string>('');
+  const [manualElementType, setManualElementType] = useState<string>('legislation');
   
   const { addNotification } = useNotificationContext();
   const previousStatusesRef = useRef<Map<string, {
@@ -354,11 +372,11 @@ export default function Products() {
       
       // Check each step for status changes
       const steps = [
-        { num: 0, current: product.step0Status, previous: previousStatuses.step0, name: 'Technical Decomposition' },
+        { num: 0, current: product.step0Status, previous: previousStatuses.step0, name: 'Product Details' },
         { num: 1, current: product.step1Status, previous: previousStatuses.step1, name: 'Compliance Assessment' },
-        { num: 2, current: product.step2Status, previous: previousStatuses.step2, name: 'Identify Elements' },
-        { num: 3, current: product.step3Status, previous: previousStatuses.step3, name: 'Compliance Descriptions' },
-        { num: 4, current: product.step4Status, previous: previousStatuses.step4, name: 'Track Updates' },
+        { num: 2, current: product.step2Status, previous: previousStatuses.step2, name: 'Compliance Elements' },
+        { num: 3, current: product.step3Status, previous: previousStatuses.step3, name: 'Element Mapping' },
+        { num: 4, current: product.step4Status, previous: previousStatuses.step4, name: 'Compliance Updates' },
       ];
       
       steps.forEach(step => {
@@ -366,7 +384,7 @@ export default function Products() {
         if (step.previous === 'running' && step.current === 'completed') {
           addNotification({
             type: 'success',
-            title: `Step ${step.num} Completed`,
+            title: `${step.name} Completed`,
             message: `${product.name}: ${step.name} finished successfully`,
             productId: product.id,
             productName: product.name,
@@ -378,7 +396,7 @@ export default function Products() {
         if (step.previous === 'running' && step.current === 'error') {
           addNotification({
             type: 'error',
-            title: `Step ${step.num} Failed`,
+            title: `${step.name} Failed`,
             message: `${product.name}: ${step.name} encountered an error`,
             productId: product.id,
             productName: product.name,
@@ -425,6 +443,388 @@ export default function Products() {
       fetchProducts();
     } catch (error) {
       console.error('Failed to remove material:', error);
+    }
+  };
+
+  // Step 0 Edit Mode Handlers
+  const handleStartEditStep0 = (productId: string) => {
+    console.log('🖊️ Starting edit mode for Step 0, product:', productId);
+    const product = products.find(p => p.id === productId);
+    if (!product) {
+      console.error('Product not found:', productId);
+      return;
+    }
+    if (!product.step0Results) {
+      console.error('step0Results not found for product:', productId);
+      return;
+    }
+    
+    console.log('Setting edit mode state...');
+    // Create editable copy first
+    const editData = {
+      categories: [...(product.step0Results.categories || [])],
+      materials: [...(product.step0Results.materials || [])],
+      product_overview: product.step0Results.product_overview || product.description || '',
+      components: [...(product.components || [])],
+      research_sources: product.step0Results.research_sources || 0,
+      product_decomposition: product.step0Results.product_decomposition || '',
+    };
+    console.log('Edit data:', editData);
+    
+    // Set both states
+    setStep0EditData(editData);
+    setEditingStep0({ productId });
+    
+    console.log('✅ Edit mode state set. editingStep0 should now be:', { productId });
+  };
+
+  const handleCancelEditStep0 = () => {
+    setEditingStep0(null);
+    setStep0EditData(null);
+  };
+
+  const handleRemoveStep0Section = (section: string, index?: number) => {
+    if (!step0EditData) return;
+    
+    const updated = { ...step0EditData };
+    
+    switch (section) {
+      case 'category':
+        if (index !== undefined) {
+          updated.categories = updated.categories.filter((_: any, i: number) => i !== index);
+        } else {
+          updated.categories = [];
+        }
+        break;
+      case 'material':
+        if (index !== undefined) {
+          updated.materials = updated.materials.filter((_: any, i: number) => i !== index);
+        } else {
+          updated.materials = [];
+        }
+        break;
+      case 'overview':
+        updated.product_overview = '';
+        break;
+      case 'component':
+        if (index !== undefined) {
+          updated.components = updated.components.filter((_: any, i: number) => i !== index);
+        } else {
+          updated.components = [];
+        }
+        break;
+      case 'sources':
+        updated.research_sources = 0;
+        break;
+      case 'decomposition':
+        updated.product_decomposition = '';
+        break;
+    }
+    
+    setStep0EditData(updated);
+  };
+
+  const handleAddCategory = () => {
+    if (!step0EditData) return;
+    const newCategory = prompt('Enter category name:');
+    if (newCategory && newCategory.trim()) {
+      setStep0EditData({
+        ...step0EditData,
+        categories: [...(step0EditData.categories || []), newCategory.trim()]
+      });
+    }
+  };
+
+  const handleAddMaterial = () => {
+    if (!step0EditData) return;
+    const newMaterial = prompt('Enter material name:');
+    if (newMaterial && newMaterial.trim()) {
+      setStep0EditData({
+        ...step0EditData,
+        materials: [...(step0EditData.materials || []), newMaterial.trim()]
+      });
+    }
+  };
+
+  const handleUpdateCategory = (index: number, newValue: string) => {
+    if (!step0EditData) return;
+    const updated = { ...step0EditData };
+    updated.categories = [...updated.categories];
+    updated.categories[index] = newValue;
+    setStep0EditData(updated);
+  };
+
+  const handleUpdateMaterial = (index: number, newValue: string) => {
+    if (!step0EditData) return;
+    const updated = { ...step0EditData };
+    updated.materials = [...updated.materials];
+    updated.materials[index] = newValue;
+    setStep0EditData(updated);
+  };
+
+  const handleUpdateComponent = (index: number, field: string, value: any) => {
+    if (!step0EditData) return;
+    const updated = { ...step0EditData };
+    updated.components = [...(updated.components || [])];
+    if (!updated.components[index]) {
+      updated.components[index] = {};
+    }
+    updated.components[index] = {
+      ...updated.components[index],
+      [field]: value
+    };
+    setStep0EditData(updated);
+  };
+
+  const handleSaveStep0 = async (productId: string) => {
+    if (!step0EditData || !editingStep0) return;
+    
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    try {
+      const clientId = getClientId(user);
+      
+      // Update step0Results
+      const step0Results = {
+        ...product.step0Results,
+        categories: step0EditData.categories,
+        materials: step0EditData.materials,
+        product_overview: step0EditData.product_overview || undefined,
+        research_sources: step0EditData.research_sources || undefined,
+        product_decomposition: step0EditData.product_decomposition || undefined,
+      };
+      
+      // Update step0Payload (used by next step) - create if doesn't exist
+      const step0Payload = {
+        ...(product.step0Payload || {}),
+        categories: step0EditData.categories,
+        materials: step0EditData.materials,
+        product_overview: step0EditData.product_overview || undefined,
+        components: step0EditData.components,
+        research_sources: step0EditData.research_sources || undefined,
+        product_decomposition: step0EditData.product_decomposition || undefined,
+      };
+      
+      await productService.updateStep0Payload(productId, step0Payload, step0Results, clientId);
+      
+      addNotification({ 
+        title: 'Product Details Updated',
+        message: 'Product Details changes saved successfully',
+        type: 'success',
+        productId: productId,
+        productName: product.name,
+        step: 0
+      });
+      setEditingStep0(null);
+      setStep0EditData(null);
+      fetchProducts();
+    } catch (error) {
+      console.error('Failed to save Step 0:', error);
+      addNotification({ 
+        title: 'Product Details Update Failed',
+        message: 'Failed to save Product Details changes',
+        type: 'error',
+        productId: productId,
+        productName: product.name,
+        step: 0
+      });
+    }
+  };
+
+  // Step 2 Edit Mode Handlers
+  const handleStartEditStep2 = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product || !product.step2Results) return;
+    
+    setEditingStep2({ productId });
+    // Create editable copy
+    setStep2EditData({
+      compliance_elements: [...(product.step2Results.compliance_elements || [])],
+    });
+  };
+
+  const handleCancelEditStep2 = () => {
+    setEditingStep2(null);
+    setStep2EditData(null);
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchResults(false);
+    setManualElementInput('');
+    setManualElementMarket('');
+    setManualElementType('legislation');
+  };
+
+  const handleRemoveStep2Element = (index: number) => {
+    if (!step2EditData) return;
+    
+    const updated = {
+      ...step2EditData,
+      compliance_elements: step2EditData.compliance_elements.filter((_: any, i: number) => i !== index),
+    };
+    
+    setStep2EditData(updated);
+  };
+
+  const handleSearchComplianceElements = async (query: string) => {
+    if (!query || query.length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+    
+    try {
+      const clientId = getClientId(user);
+      const response = await productService.searchComplianceElements(query, clientId);
+      setSearchResults(response.data || []);
+      setShowSearchResults(true);
+    } catch (error) {
+      console.error('Failed to search compliance elements:', error);
+      setSearchResults([]);
+    }
+  };
+
+  const handleSelectComplianceElement = (element: any) => {
+    if (!step2EditData) return;
+    
+    // Add element to list
+    const newElement = {
+      element_name: element.name,
+      element_designation: element.designation,
+      element_type: element.type || 'legislation',
+      element_description_long: element.description,
+      element_url: element.source_official,
+      element_countries: element.countries || [],
+      from_database: true,
+    };
+    
+    const updated = {
+      ...step2EditData,
+      compliance_elements: [...step2EditData.compliance_elements, newElement],
+    };
+    
+    setStep2EditData(updated);
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchResults(false);
+  };
+
+  const handleAddManualElement = () => {
+    if (!manualElementInput.trim() || !step2EditData) return;
+    
+    // Create element object with user-selected market and type
+    const newElement = {
+      element_name: manualElementInput.trim(),
+      element_designation: manualElementInput.trim(),
+      element_type: manualElementType,
+      element_countries: manualElementMarket ? [manualElementMarket] : [],
+      from_database: false,
+      manually_added: true,
+    };
+    
+    const updated = {
+      ...step2EditData,
+      compliance_elements: [...step2EditData.compliance_elements, newElement],
+    };
+    
+    setStep2EditData(updated);
+    setManualElementInput('');
+    setManualElementMarket('');
+    setManualElementType('legislation');
+  };
+
+  const handleSaveStep2 = async (productId: string) => {
+    console.log('💾 Saving Step 2 for product:', productId);
+    console.log('step2EditData:', step2EditData);
+    console.log('editingStep2:', editingStep2);
+    
+    if (!step2EditData) {
+      console.error('No step2EditData to save');
+      addNotification({ 
+        title: 'Compliance Elements Save Failed',
+        message: 'No data to save',
+        type: 'error',
+        productId: productId,
+        productName: 'Unknown',
+        step: 2
+      });
+      return;
+    }
+    
+    if (!editingStep2) {
+      console.error('Not in edit mode');
+      return;
+    }
+    
+    const product = products.find(p => p.id === productId);
+    if (!product) {
+      console.error('Product not found:', productId);
+      addNotification({ 
+        title: 'Compliance Elements Save Failed',
+        message: 'Product not found',
+        type: 'error',
+        productId: productId,
+        productName: 'Unknown',
+        step: 2
+      });
+      return;
+    }
+    
+    try {
+      const clientId = getClientId(user);
+      console.log('Using clientId:', clientId);
+      
+      // Update step2Results
+      const step2Results = {
+        ...(product.step2Results || {}),
+        compliance_elements: step2EditData.compliance_elements || [],
+        elements_count: (step2EditData.compliance_elements || []).length,
+      };
+      
+      // Update step2Payload (used by next step) - create if doesn't exist
+      const step2Payload = {
+        ...(product.step2Payload || {}),
+        compliance_elements: step2EditData.compliance_elements || [],
+        product_name: product.step2Payload?.product_name || product.name,
+        target_markets: product.step2Payload?.target_markets || product.markets || [],
+      };
+      
+      console.log('Calling updateStep2Payload with:', { productId, step2Payload, step2Results, clientId });
+      const response = await productService.updateStep2Payload(productId, step2Payload, step2Results, clientId);
+      console.log('Save response:', response);
+      
+      addNotification({ 
+        title: 'Compliance Elements Updated',
+        message: 'Compliance Elements changes saved successfully',
+        type: 'success',
+        productId: productId,
+        productName: product.name,
+        step: 2
+      });
+      setEditingStep2(null);
+      setStep2EditData(null);
+      setSearchQuery('');
+      setSearchResults([]);
+      setShowSearchResults(false);
+      setManualElementInput('');
+      setManualElementMarket('');
+      setManualElementType('legislation');
+      fetchProducts();
+    } catch (error: any) {
+      console.error('Failed to save Step 2:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status
+      });
+      addNotification({ 
+        title: 'Compliance Elements Update Failed',
+        message: error?.response?.data?.detail || error?.message || 'Failed to save Compliance Elements changes',
+        type: 'error',
+        productId: productId,
+        productName: product.name,
+        step: 2
+      });
     }
   };
 
@@ -666,7 +1066,11 @@ export default function Products() {
                         <div className="flex gap-1 sm:gap-2 mb-4 w-full">
                           {/* Step 0 Box - Product Details */}
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              // Don't collapse if clicking on edit button area
+                              if ((e.target as HTMLElement).closest('.edit-step0-button')) {
+                                return;
+                              }
                               if (expandedStep?.productId === product.id && expandedStep?.stepNumber === 0) {
                                 setExpandedStep(null);
                               } else {
@@ -721,7 +1125,7 @@ export default function Products() {
                           </button>
 
                           {/* Step 1 Marker - Compliance Assessment (Status Only) */}
-                          <div className="border-0 p-2 sm:p-4 bg-gray-100 flex-1">
+                          <div className="border-0 p-2 sm:p-4 bg-gray-100 flex-1 relative">
                             <div className="flex flex-col items-center justify-center h-full">
                               <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1 sm:mb-2 text-center leading-tight">Compliance Assessment</span>
                               {getStatusBadge(product.step1Status)}
@@ -729,6 +1133,38 @@ export default function Products() {
                                 <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
                               )}
                             </div>
+                            {(product.step1Status === 'completed' || product.step1Status === 'error') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRefreshStep(product.id, 1);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Re-run Compliance Assessment"
+                                >
+                                  <RefreshCw className="w-3 h-3 text-gray-500" />
+                                </Button>
+                              </div>
+                            )}
+                            {(product.step1Status === 'running' || product.step1Status === 'processing') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStopStep(product.id, 1);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Stop Compliance Assessment"
+                                >
+                                  <XCircle className="w-3 h-3 text-red-600" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Step 2 Box - Compliance Elements */}
@@ -788,7 +1224,7 @@ export default function Products() {
                           </button>
 
                           {/* Step 3 Marker - Element Mapping (Status Only) */}
-                          <div className="border-0 p-2 sm:p-4 bg-gray-100 flex-1">
+                          <div className="border-0 p-2 sm:p-4 bg-gray-100 flex-1 relative">
                             <div className="flex flex-col items-center justify-center h-full">
                               <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1 sm:mb-2 text-center leading-tight">Element Mapping</span>
                               {getStatusBadge(product.step3Status)}
@@ -796,6 +1232,38 @@ export default function Products() {
                                 <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
                               )}
                             </div>
+                            {(product.step3Status === 'completed' || product.step3Status === 'error') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRefreshStep(product.id, 3);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Re-run Element Mapping"
+                                >
+                                  <RefreshCw className="w-3 h-3 text-gray-500" />
+                                </Button>
+                              </div>
+                            )}
+                            {(product.step3Status === 'running' || product.step3Status === 'processing') && (
+                              <div className="absolute top-1 right-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStopStep(product.id, 3);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                  title="Stop Element Mapping"
+                                >
+                                  <XCircle className="w-3 h-3 text-red-600" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Step 4 Box - Compliance Updates */}
@@ -858,14 +1326,95 @@ export default function Products() {
                           {/* Expandable Step 0 Results */}
                           {expandedStep?.productId === product.id && expandedStep?.stepNumber === 0 && product.step0Results && (
                             <div className="ml-6 mt-2 space-y-4">
+                              {/* Edit Controls - Fixed at top right */}
+                              <div className="flex justify-end mb-2">
+                                {editingStep0?.productId === product.id ? (
+                                  <div className="flex gap-2">
+                                    <Button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleSaveStep0(product.id);
+                                      }}
+                                      size="sm"
+                                      className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-xs px-3 py-1.5 h-7"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleCancelEditStep0();
+                                      }}
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-xs px-3 py-1.5 h-7"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      console.log('🖊️ Edit button clicked for product:', product.id);
+                                      console.log('Current editingStep0 state:', editingStep0);
+                                      console.log('Products array length:', products.length);
+                                      handleStartEditStep0(product.id);
+                                    }}
+                                    className="px-3 py-1.5 h-7 hover:bg-gray-100 rounded border border-gray-300 cursor-pointer bg-white shadow-sm flex items-center justify-center gap-1.5 text-xs font-medium text-[hsl(var(--dashboard-link-color))]"
+                                    title="Edit Step 0"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                    <span>Edit</span>
+                                  </button>
+                                )}
+                              </div>
+                              
                               {/* Categories and Materials at the TOP */}
                               <div className="space-y-3">
                                 {/* Categories - First */}
-                                {product.step0Results.categories && product.step0Results.categories.length > 0 && (
-                                  <div>
-                                    <h6 className="text-xs font-semibold text-gray-600 mb-2">Categories</h6>
+                                {((editingStep0?.productId === product.id) || 
+                                  (!editingStep0 && product.step0Results.categories && product.step0Results.categories.length > 0)) && (
+                                  <div className="relative">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h6 className="text-xs font-semibold text-gray-600">Categories</h6>
+                                      {editingStep0?.productId === product.id && (
+                                        <div className="flex gap-1">
+                                          <button
+                                            onClick={handleAddCategory}
+                                            className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 hover:bg-blue-200 border-0"
+                                            title="Add category"
+                                          >
+                                            + Add
+                                          </button>
+                                          {(step0EditData?.categories?.length > 0) && (
+                                            <button
+                                              onClick={() => handleRemoveStep0Section('category')}
+                                              className="text-red-500 hover:text-red-700"
+                                              title="Remove all categories"
+                                            >
+                                              <XCircle className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                     <div className="flex flex-wrap gap-2">
-                                      {product.step0Results.categories.map((category: string, idx: number) => (
+                                      {(editingStep0?.productId === product.id ? step0EditData?.categories : product.step0Results.categories)?.map((category: string, idx: number) => (
+                                        editingStep0?.productId === product.id ? (
+                                          <input
+                                            key={idx}
+                                            type="text"
+                                            value={category}
+                                            onChange={(e) => handleUpdateCategory(idx, e.target.value)}
+                                            className="text-xs px-2 py-1 bg-blue-100 text-blue-700 border border-blue-300 rounded min-w-[100px]"
+                                            placeholder="Category name"
+                                          />
+                                        ) : (
                                         <Badge 
                                           key={idx} 
                                           className="bg-blue-100 text-blue-700 border-0 flex items-center gap-1 pr-1"
@@ -879,17 +1428,51 @@ export default function Products() {
                                             ✕
                                           </button>
                                         </Badge>
+                                        )
                                       ))}
                                     </div>
                                   </div>
                                 )}
                                 
                                 {/* Materials - Second */}
-                                {product.step0Results.materials && product.step0Results.materials.length > 0 && (
-                                  <div>
-                                    <h6 className="text-xs font-semibold text-gray-600 mb-2">Materials</h6>
+                                {((editingStep0?.productId === product.id) || 
+                                  (!editingStep0 && product.step0Results.materials && product.step0Results.materials.length > 0)) && (
+                                  <div className="relative">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h6 className="text-xs font-semibold text-gray-600">Materials</h6>
+                                      {editingStep0?.productId === product.id && (
+                                        <div className="flex gap-1">
+                                          <button
+                                            onClick={handleAddMaterial}
+                                            className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 hover:bg-purple-200 border-0"
+                                            title="Add material"
+                                          >
+                                            + Add
+                                          </button>
+                                          {(step0EditData?.materials?.length > 0) && (
+                                            <button
+                                              onClick={() => handleRemoveStep0Section('material')}
+                                              className="text-red-500 hover:text-red-700"
+                                              title="Remove all materials"
+                                            >
+                                              <XCircle className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                     <div className="flex flex-wrap gap-2">
-                                      {product.step0Results.materials.map((material: string, idx: number) => (
+                                      {(editingStep0?.productId === product.id ? step0EditData?.materials : product.step0Results.materials)?.map((material: string, idx: number) => (
+                                        editingStep0?.productId === product.id ? (
+                                          <input
+                                            key={idx}
+                                            type="text"
+                                            value={material}
+                                            onChange={(e) => handleUpdateMaterial(idx, e.target.value)}
+                                            className="text-xs px-2 py-1 bg-purple-100 text-purple-700 border border-purple-300 rounded min-w-[100px]"
+                                            placeholder="Material name"
+                                          />
+                                        ) : (
                                         <Badge 
                                           key={idx} 
                                           className="bg-purple-100 text-purple-700 border-0 flex items-center gap-1 pr-1"
@@ -903,6 +1486,7 @@ export default function Products() {
                                             ✕
                                           </button>
                                         </Badge>
+                                        )
                                       ))}
                                     </div>
                                   </div>
@@ -910,26 +1494,202 @@ export default function Products() {
                               </div>
 
                               {/* Product Overview */}
-                              <div>
-                                <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                              {((editingStep0?.productId === product.id) || 
+                                (!editingStep0 && (product.step0Results.product_overview || product.description))) && (
+                                <div className="relative">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
                                   Product Overview
                                 </h5>
+                                  {editingStep0?.productId === product.id && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleRemoveStep0Section('overview');
+                                      }}
+                                      className="text-red-500 hover:text-red-700 z-10"
+                                      title="Remove Product Overview"
+                                    >
+                                      <XCircle className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
                                 <div className="bg-dashboard-view-background p-4">
+                                    {editingStep0?.productId === product.id ? (
+                                      <textarea
+                                        value={step0EditData?.product_overview || ''}
+                                        onChange={(e) => setStep0EditData({ ...step0EditData, product_overview: e.target.value })}
+                                        className="w-full text-xs text-gray-700 bg-white border border-gray-300 p-2 min-h-[100px]"
+                                        placeholder="Product overview..."
+                                      />
+                                    ) : (
                                   <p className="text-xs text-gray-700 whitespace-pre-wrap">
                                     {product.step0Results.product_overview || product.description}
                                   </p>
+                                    )}
                                 </div>
                               </div>
+                              )}
 
                               {/* Components */}
-                              {product.components && product.components.length > 0 && (
-                                <div>
-                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                    Components ({product.components.length})
+                              {((editingStep0?.productId === product.id) || 
+                                (!editingStep0 && product.components && product.components.length > 0)) && (
+                                <div className="relative">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                      Components ({(editingStep0?.productId === product.id ? step0EditData?.components : product.components)?.length || 0})
                                   </h5>
+                                    {editingStep0?.productId === product.id && (
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => {
+                                            const newComponent = {
+                                              name: `Component ${(step0EditData?.components?.length || 0) + 1}`,
+                                              description: '',
+                                              materials: '',
+                                              function: '',
+                                              technical_specifications: {}
+                                            };
+                                            setStep0EditData({
+                                              ...step0EditData,
+                                              components: [...(step0EditData?.components || []), newComponent]
+                                            });
+                                          }}
+                                          className="text-xs px-2 py-0.5 bg-[hsl(var(--dashboard-link-color))] text-white hover:bg-[hsl(var(--dashboard-link-color))]/80 border-0"
+                                          title="Add component"
+                                        >
+                                          + Add Component
+                                        </button>
+                                        {(step0EditData?.components?.length > 0) && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              setStep0EditData({ ...step0EditData, components: [] });
+                                            }}
+                                            className="text-red-500 hover:text-red-700 z-10"
+                                            title="Remove all components"
+                                          >
+                                            <XCircle className="w-4 h-4" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                   <div className="space-y-3">
-                                    {product.components.map((component: any, idx: number) => (
-                                      <div key={idx} className="bg-dashboard-view-background p-4">
+                                    {(editingStep0?.productId === product.id ? step0EditData?.components : product.components)?.map((component: any, idx: number) => (
+                                      <div key={idx} className="bg-dashboard-view-background p-4 relative">
+                                        {editingStep0?.productId === product.id && (
+                                          <button
+                                            onClick={() => handleRemoveStep0Section('component', idx)}
+                                            className="absolute top-2 right-2 text-red-500 hover:text-red-700 z-10"
+                                            title="Remove component"
+                                          >
+                                            <XCircle className="w-4 h-4" />
+                                          </button>
+                                        )}
+                                        
+                                        {editingStep0?.productId === product.id ? (
+                                          <div className="space-y-3">
+                                            <div>
+                                              <label className="text-xs font-semibold text-gray-600 block mb-1">Component Name</label>
+                                              <input
+                                                type="text"
+                                                value={component.name || ''}
+                                                onChange={(e) => handleUpdateComponent(idx, 'name', e.target.value)}
+                                                className="w-full text-xs px-2 py-1 bg-white border border-gray-300"
+                                                placeholder="Component name"
+                                              />
+                                            </div>
+                                            
+                                            <div>
+                                              <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
+                                              <textarea
+                                                value={component.description || ''}
+                                                onChange={(e) => handleUpdateComponent(idx, 'description', e.target.value)}
+                                                className="w-full text-xs px-2 py-1 bg-white border border-gray-300 min-h-[60px]"
+                                                placeholder="Component description"
+                                              />
+                                            </div>
+                                            
+                                            <div>
+                                              <label className="text-xs font-semibold text-gray-600 block mb-1">Materials</label>
+                                              <input
+                                                type="text"
+                                                value={component.materials || ''}
+                                                onChange={(e) => handleUpdateComponent(idx, 'materials', e.target.value)}
+                                                className="w-full text-xs px-2 py-1 bg-white border border-gray-300"
+                                                placeholder="Materials used"
+                                              />
+                                            </div>
+                                            
+                                            <div>
+                                              <label className="text-xs font-semibold text-gray-600 block mb-1">Function</label>
+                                              <textarea
+                                                value={component.function || ''}
+                                                onChange={(e) => handleUpdateComponent(idx, 'function', e.target.value)}
+                                                className="w-full text-xs px-2 py-1 bg-white border border-gray-300 min-h-[50px]"
+                                                placeholder="Component function"
+                                              />
+                                            </div>
+                                            
+                                            <div>
+                                              <label className="text-xs font-semibold text-gray-600 block mb-1">Technical Specifications</label>
+                                              <div className="bg-white border border-gray-300 p-2 space-y-2">
+                                                {Object.entries(component.technical_specifications || {}).map(([key, value]: [string, any], specIdx: number) => (
+                                                  <div key={specIdx} className="flex gap-2">
+                                                    <input
+                                                      type="text"
+                                                      value={key}
+                                                      onChange={(e) => {
+                                                        const specs = { ...component.technical_specifications || {} };
+                                                        delete specs[key];
+                                                        specs[e.target.value] = value;
+                                                        handleUpdateComponent(idx, 'technical_specifications', specs);
+                                                      }}
+                                                      className="flex-1 text-xs px-2 py-1 bg-white border border-gray-200"
+                                                      placeholder="Spec name"
+                                                    />
+                                                    <input
+                                                      type="text"
+                                                      value={String(value)}
+                                                      onChange={(e) => {
+                                                        const specs = { ...component.technical_specifications || {} };
+                                                        specs[key] = e.target.value;
+                                                        handleUpdateComponent(idx, 'technical_specifications', specs);
+                                                      }}
+                                                      className="flex-1 text-xs px-2 py-1 bg-white border border-gray-200"
+                                                      placeholder="Spec value"
+                                                    />
+                                                    <button
+                                                      onClick={() => {
+                                                        const specs = { ...component.technical_specifications || {} };
+                                                        delete specs[key];
+                                                        handleUpdateComponent(idx, 'technical_specifications', specs);
+                                                      }}
+                                                      className="text-red-500 hover:text-red-700 px-1"
+                                                      title="Remove spec"
+                                                    >
+                                                      ✕
+                                                    </button>
+                                                  </div>
+                                                ))}
+                                                <button
+                                                  onClick={() => {
+                                                    const specs = { ...component.technical_specifications || {} };
+                                                    specs['New Spec'] = '';
+                                                    handleUpdateComponent(idx, 'technical_specifications', specs);
+                                                  }}
+                                                  className="text-xs text-gray-500 hover:text-gray-700"
+                                                >
+                                                  + Add Spec
+                                                </button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <>
                                         <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
                                           {component.name || `Component ${idx + 1}`}
                                         </h6>
@@ -957,16 +1717,70 @@ export default function Products() {
                                             <span className="text-xs font-semibold text-gray-600">Function: </span>
                                             <span className="text-xs text-gray-700">{component.function}</span>
                                           </div>
+                                            )}
+                                          </>
                                         )}
                                         
                                         {/* Technical Specifications Table */}
-                                        {component.technical_specifications && (
+                                        {(component.technical_specifications || (editingStep0?.productId === product.id)) && (
                                           <div className="mt-3">
                                             <h6 className="text-xs font-semibold text-gray-600 mb-2">Technical Specifications</h6>
+                                            {editingStep0?.productId === product.id ? (
+                                              <div className="bg-white border border-gray-300 p-2 space-y-2">
+                                                {Object.entries(component.technical_specifications || {}).map(([key, value]: [string, any], specIdx: number) => (
+                                                  <div key={specIdx} className="flex gap-2">
+                                                    <input
+                                                      type="text"
+                                                      value={key}
+                                                      onChange={(e) => {
+                                                        const specs = { ...component.technical_specifications };
+                                                        delete specs[key];
+                                                        specs[e.target.value] = value;
+                                                        handleUpdateComponent(idx, 'technical_specifications', specs);
+                                                      }}
+                                                      className="flex-1 text-xs px-2 py-1 bg-white border border-gray-200"
+                                                      placeholder="Spec name"
+                                                    />
+                                                    <input
+                                                      type="text"
+                                                      value={String(value)}
+                                                      onChange={(e) => {
+                                                        const specs = { ...component.technical_specifications };
+                                                        specs[key] = e.target.value;
+                                                        handleUpdateComponent(idx, 'technical_specifications', specs);
+                                                      }}
+                                                      className="flex-1 text-xs px-2 py-1 bg-white border border-gray-200"
+                                                      placeholder="Spec value"
+                                                    />
+                                                    <button
+                                                      onClick={() => {
+                                                        const specs = { ...component.technical_specifications };
+                                                        delete specs[key];
+                                                        handleUpdateComponent(idx, 'technical_specifications', specs);
+                                                      }}
+                                                      className="text-red-500 hover:text-red-700 px-1"
+                                                      title="Remove spec"
+                                                    >
+                                                      ✕
+                                                    </button>
+                                                  </div>
+                                                ))}
+                                                <button
+                                                  onClick={() => {
+                                                    const specs = { ...component.technical_specifications || {} };
+                                                    specs['New Spec'] = '';
+                                                    handleUpdateComponent(idx, 'technical_specifications', specs);
+                                                  }}
+                                                  className="text-xs text-gray-500 hover:text-gray-700"
+                                                >
+                                                  + Add Spec
+                                                </button>
+                                              </div>
+                                            ) : (
                                             <div className="bg-white border-0">
                                               <table className="w-full text-xs">
                                                 <tbody>
-                                                  {Object.entries(component.technical_specifications).map(([key, value], specIdx) => (
+                                                    {Object.entries(component.technical_specifications || {}).map(([key, value], specIdx) => (
                                                     <tr key={specIdx} className="border-b border-gray-200 last:border-0">
                                                       <td className="py-2 px-3 font-semibold text-gray-600 bg-gray-50 w-1/3">
                                                         {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -979,6 +1793,7 @@ export default function Products() {
                                                 </tbody>
                                               </table>
                                             </div>
+                                            )}
                                           </div>
                                         )}
                                       </div>
@@ -988,14 +1803,30 @@ export default function Products() {
                               )}
 
                               {/* Research Sources */}
-                              {product.step0Results.research_sources && product.step0Results.research_sources > 0 && (
-                                <div>
-                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                    Research Sources ({product.step0Results.research_sources})
+                              {((editingStep0?.productId === product.id) || 
+                                (!editingStep0 && product.step0Results.research_sources && product.step0Results.research_sources > 0)) && (
+                                <div className="relative">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                      Research Sources ({editingStep0?.productId === product.id ? (step0EditData?.research_sources || 0) : product.step0Results.research_sources})
                                   </h5>
+                                    {editingStep0?.productId === product.id && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          handleRemoveStep0Section('sources');
+                                        }}
+                                        className="text-red-500 hover:text-red-700 z-10"
+                                        title="Remove Research Sources"
+                                      >
+                                        <XCircle className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
                                   <div className="bg-dashboard-view-background p-4 space-y-2">
                                     <p className="text-xs text-gray-600">
-                                      {product.step0Results.research_sources} sources used. Sources can be managed in Step 1.
+                                      {editingStep0?.productId === product.id ? step0EditData?.research_sources : product.step0Results.research_sources} sources used. Sources can be managed in Step 1.
                                     </p>
                                   </div>
                                 </div>
@@ -1003,15 +1834,40 @@ export default function Products() {
                               
                               {/* Fallback: Show raw text if no components */}
                               {/* Always show full product decomposition if available */}
-                              {product.step0Results?.product_decomposition && (
-                                <div>
-                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                              {((editingStep0?.productId === product.id) || 
+                                (!editingStep0 && product.step0Results?.product_decomposition)) && (
+                                <div className="relative">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
                                     Complete Technical Product Decomposition
                                   </h5>
+                                    {editingStep0?.productId === product.id && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          handleRemoveStep0Section('decomposition');
+                                        }}
+                                        className="text-red-500 hover:text-red-700 z-10"
+                                        title="Remove Product Decomposition"
+                                      >
+                                        <XCircle className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
                                   <div className="bg-dashboard-view-background p-4 max-h-[600px] overflow-y-auto">
+                                    {editingStep0?.productId === product.id ? (
+                                      <textarea
+                                        value={step0EditData?.product_decomposition || ''}
+                                        onChange={(e) => setStep0EditData({ ...step0EditData, product_decomposition: e.target.value })}
+                                        className="w-full text-xs text-gray-700 bg-white border border-gray-300 p-2 min-h-[200px] font-mono"
+                                        placeholder="Product decomposition..."
+                                      />
+                                    ) : (
                                     <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
-                                      {product.step0Results?.product_decomposition}
+                                        {product.step0Results?.product_decomposition}
                                     </pre>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -1022,12 +1878,164 @@ export default function Products() {
 
                         {/* Expandable Step 2 Results */}
                           {expandedStep?.productId === product.id && expandedStep?.stepNumber === 2 && product.step2Results && (
-                            <div className="ml-6 mt-2">
+                            <div className="ml-6 mt-2 relative">
+                              {/* Edit Icon - Top Right */}
+                              <div className="absolute top-0 right-0">
+                                {editingStep2?.productId === product.id ? (
+                                  <div className="flex gap-2">
+                                    <Button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        console.log('💾 Save button clicked for product:', product.id);
+                                        handleSaveStep2(product.id);
+                                      }}
+                                      size="sm"
+                                      className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-xs px-3 py-1.5 h-7"
+                                      type="button"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      onClick={handleCancelEditStep2}
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-xs px-2 py-1 h-6"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    onClick={() => handleStartEditStep2(product.id)}
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs px-2 py-1 h-6"
+                                    title="Edit Step 2"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                              </div>
+                              
                               <div className="mb-3">
                                 <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                  Compliance Elements ({product.step2Results.elements_count || 0})
+                                  Compliance Elements ({(editingStep2?.productId === product.id ? step2EditData?.compliance_elements?.length : product.step2Results.elements_count) || 0})
                                 </h5>
                               </div>
+                              
+                              {/* Edit Mode: Search and Manual Input */}
+                              {editingStep2?.productId === product.id && (
+                                <div className="mb-4 space-y-3 p-3 bg-dashboard-view-background">
+                                  {/* Search Field */}
+                                  <div className="relative">
+                                    <Label className="text-xs font-medium text-[hsl(var(--dashboard-link-color))] mb-1 block">
+                                      Search Compliance Elements
+                                    </Label>
+                                    <input
+                                      type="text"
+                                      value={searchQuery}
+                                      onChange={(e) => {
+                                        setSearchQuery(e.target.value);
+                                        handleSearchComplianceElements(e.target.value);
+                                      }}
+                                      onFocus={() => {
+                                        if (searchQuery.length >= 2) {
+                                          setShowSearchResults(true);
+                                        }
+                                      }}
+                                      className="w-full text-xs border border-gray-300 p-2 bg-white"
+                                      placeholder="Type to search..."
+                                    />
+                                    {showSearchResults && searchResults.length > 0 && (
+                                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 max-h-48 overflow-y-auto">
+                                        {searchResults.map((element, idx) => (
+                                          <div
+                                            key={idx}
+                                            onClick={() => handleSelectComplianceElement(element)}
+                                            className="p-2 hover:bg-gray-100 cursor-pointer border-b border-gray-200 last:border-0"
+                                          >
+                                            <div className="text-xs font-semibold text-[hsl(var(--dashboard-link-color))]">
+                                              {element.name}
+                                            </div>
+                                            {element.designation && (
+                                              <div className="text-xs text-gray-500">
+                                                {element.designation}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Manual Input Field */}
+                                  <div className="space-y-2">
+                                    <Label className="text-xs font-medium text-[hsl(var(--dashboard-link-color))] mb-1 block">
+                                      Add Compliance Element (name or designation)
+                                    </Label>
+                                    <div className="flex gap-2">
+                                      <input
+                                        type="text"
+                                        value={manualElementInput}
+                                        onChange={(e) => setManualElementInput(e.target.value)}
+                                        onKeyPress={(e) => {
+                                          if (e.key === 'Enter') {
+                                            handleAddManualElement();
+                                          }
+                                        }}
+                                        className="flex-1 text-xs border border-gray-300 p-2 bg-white"
+                                        placeholder="Enter name or designation..."
+                                      />
+                                      <Button
+                                        onClick={handleAddManualElement}
+                                        size="sm"
+                                        className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-xs px-3"
+                                        disabled={!manualElementInput.trim()}
+                                      >
+                                        Add
+                                      </Button>
+                                    </div>
+                                    
+                                    {/* Market Selection */}
+                                    <div className="flex gap-2">
+                                      <div className="flex-1">
+                                        <Label className="text-xs font-medium text-gray-600 mb-1 block">
+                                          Market
+                                        </Label>
+                                        <select
+                                          value={manualElementMarket}
+                                          onChange={(e) => setManualElementMarket(e.target.value)}
+                                          className="w-full text-xs border border-gray-300 p-2 bg-white"
+                                        >
+                                          <option value="">Select market (optional)</option>
+                                          {product.markets?.map((market: string) => (
+                                            <option key={market} value={market}>
+                                              {market}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      
+                                      {/* Type Selection */}
+                                      <div className="flex-1">
+                                        <Label className="text-xs font-medium text-gray-600 mb-1 block">
+                                          Type
+                                        </Label>
+                                        <select
+                                          value={manualElementType}
+                                          onChange={(e) => setManualElementType(e.target.value)}
+                                          className="w-full text-xs border border-gray-300 p-2 bg-white"
+                                        >
+                                          <option value="legislation">Legislation</option>
+                                          <option value="standard">Standard</option>
+                                          <option value="marking">Marking</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
 
                               {/* Category Filter */}
                               {complianceAreas.length > 0 && (
@@ -1067,10 +2075,16 @@ export default function Products() {
                               )}
                               
                               {/* Display as structured list if we have parsed elements */}
-                              {product.step2Results.compliance_elements && Array.isArray(product.step2Results.compliance_elements) && product.step2Results.compliance_elements.length > 0 ? (
+                              {((editingStep2?.productId === product.id && step2EditData?.compliance_elements?.length > 0) || 
+                                (!editingStep2 && product.step2Results.compliance_elements && Array.isArray(product.step2Results.compliance_elements) && product.step2Results.compliance_elements.length > 0)) ? (
                                 (() => {
+                                  // Use edit data if in edit mode, otherwise use product data
+                                  const elementsToDisplay = editingStep2?.productId === product.id 
+                                    ? step2EditData?.compliance_elements 
+                                    : product.step2Results.compliance_elements;
+                                  
                                   // Filter elements by selected categories
-                                  let filteredElements = product.step2Results.compliance_elements;
+                                  let filteredElements = elementsToDisplay;
                                   
                                   if (selectedCategories.size > 0) {
                                     filteredElements = filteredElements.filter((element: any) => {
@@ -1125,10 +2139,33 @@ export default function Products() {
                                             }
                                           }
                                           
+                                          // Find original index in full list for removal
+                                          const fullList = editingStep2?.productId === product.id 
+                                            ? step2EditData?.compliance_elements || []
+                                            : filteredElements;
+                                          const originalIndex = fullList.findIndex((el: any) => {
+                                            const elName = el?.element_name || el?.name;
+                                            const elDes = el?.element_designation || el?.designation;
+                                            return (elName === name && elDes === designation) || 
+                                                   (elName === name && !elDes && !designation) || 
+                                                   (elDes === designation && elDes);
+                                          });
+                                          
                                           return (
-                                            <div key={idx} className="relative bg-white p-3 transition-colors hover:bg-gray-50">
-                                              {/* Link icon in top right corner - only show if URL exists */}
-                                                    {elementUrl && (
+                                            <div key={`${category}-${originalIndex}-${idx}`} className="relative bg-white p-3 transition-colors hover:bg-gray-50">
+                                              {/* X button for removal in edit mode */}
+                                              {editingStep2?.productId === product.id && originalIndex !== -1 && (
+                                                <button
+                                                  onClick={() => handleRemoveStep2Element(originalIndex)}
+                                                  className="absolute top-2 right-2 text-red-500 hover:text-red-700 z-10"
+                                                  title="Remove element"
+                                                >
+                                                  <XCircle className="w-4 h-4" />
+                                                </button>
+                                              )}
+                                              
+                                              {/* Link icon in top right corner - only show if URL exists and not in edit mode */}
+                                              {!editingStep2 && elementUrl && (
                                                 <div className="absolute top-2 right-2">
                                                       <a 
                                                         href={elementUrl} 
@@ -1707,29 +2744,40 @@ export default function Products() {
 
                     {/* Action Buttons - Top Right Corner */}
                     <div className="flex gap-2 flex-shrink-0 items-start">
-                      {(
-                        product.step0Status === 'pending' || !product.step0Status || 
-                        product.step1Status === 'pending' || !product.step1Status || 
-                        product.step2Status === 'pending' || !product.step2Status || 
-                        product.step3Status === 'pending' || !product.step3Status || 
-                        product.step4Status === 'pending' || !product.step4Status
-                      ) && (
+                      {(() => {
+                        // Determine which step should be started next
+                        let nextStep: number | null = null;
+                        
+                        if (product.step0Status === 'pending' || !product.step0Status) {
+                          nextStep = 0;
+                        } else if (product.step0Status === 'completed' && (product.step1Status === 'pending' || !product.step1Status)) {
+                          nextStep = 1;
+                        } else if (product.step1Status === 'completed' && (product.step2Status === 'pending' || !product.step2Status)) {
+                          nextStep = 2;
+                        } else if (product.step2Status === 'completed' && (product.step3Status === 'pending' || !product.step3Status)) {
+                          nextStep = 3;
+                        } else if (product.step3Status === 'completed' && (product.step4Status === 'pending' || !product.step4Status)) {
+                          nextStep = 4;
+                        }
+                        
+                        return nextStep !== null ? (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            if (product.step0Status === 'pending' || !product.step0Status) handleStartStep0(product.id);
-                            else if (product.step1Status === 'pending' || !product.step1Status) handleStartStep1(product.id);
-                            else if (product.step2Status === 'pending' || !product.step2Status) handleStartStep2(product.id);
-                            else if (product.step3Status === 'pending' || !product.step3Status) handleStartStep3(product.id);
-                            else if (product.step4Status === 'pending' || !product.step4Status) handleStartStep4(product.id);
+                              if (nextStep === 0) handleStartStep0(product.id);
+                              else if (nextStep === 1) handleStartStep1(product.id);
+                              else if (nextStep === 2) handleStartStep2(product.id);
+                              else if (nextStep === 3) handleStartStep3(product.id);
+                              else if (nextStep === 4) handleStartStep4(product.id);
                           }}
                           className="border-0 bg-blue-50 text-blue-600 hover:bg-blue-100"
                         >
                           <Play className="w-4 h-4 mr-1" />
                           Start Next
                         </Button>
-                      )}
+                        ) : null;
+                      })()}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                       <Button
