@@ -15,7 +15,6 @@ import {
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { apiService } from '@/services/api';
 import { getClientId } from '@/utils/clientId';
 
 interface TopbarProps {

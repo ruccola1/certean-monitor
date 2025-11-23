@@ -140,7 +140,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
           console.log('Starting Step 0 processing for product:', productId);
           // Extract client_id from Auth0 user token
           const clientId = getClientId(user);
-          await productService.runStep0(productId, clientId);
+          await productService.executeStep0(productId, clientId);
           console.log('Step 0 processing started successfully');
         } catch (error) {
           console.error('Failed to start Step 0:', error);

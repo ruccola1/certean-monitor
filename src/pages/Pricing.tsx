@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SUBSCRIPTION_PLANS } from '@/config/subscriptionPlans';
 import type { SubscriptionTier } from '@/types/subscription';
-import { apiService } from '@/services/api';
 import { useAuth0 } from '@auth0/auth0-react';
 import { getClientId } from '@/utils/clientId';
 

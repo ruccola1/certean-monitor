@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus, Save, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { X, Save, Edit2, Loader2 } from 'lucide-react';
 import { apiService } from '@/services/api';
 import { useAuth0 } from '@auth0/auth0-react';
 import { getClientId } from '@/utils/clientId';
