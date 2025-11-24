@@ -1164,7 +1164,7 @@ export default function Products() {
                                     </>
                                   ) : (
                                     <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))] truncate">
-                                      {step0Status === 'completed' ? '100%' : step0Status.toUpperCase()}
+                                      {step0Status === 'completed' ? '100%' : step0Status === 'running' ? '-' : step0Status.toUpperCase()}
                                     </p>
                                   )}
                                 </div>
