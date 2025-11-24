@@ -630,7 +630,7 @@ export default function Products() {
       
       addNotification({ 
         title: 'Product Details Updated',
-        message: 'Product Details changes saved successfully. Step 1 will start automatically.',
+        message: 'Re-running analysis with updated information...',
         type: 'success',
         productId: productId,
         productName: product.name,
@@ -639,8 +639,13 @@ export default function Products() {
       setEditingStep0(null);
       setStep0EditData(null);
       
-      // Auto-trigger Step 1 is now handled by the backend upon update
-      // Step 1 will be started by the backend background task
+      // Re-run Step 0 with updated information
+      try {
+        await productService.executeStep0(productId, clientId);
+        console.log('Step 0 re-triggered after save');
+      } catch (error) {
+        console.error('Failed to re-trigger Step 0:', error);
+      }
       
       fetchProducts();
     } catch (error) {
