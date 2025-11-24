@@ -879,7 +879,9 @@ export default function Products() {
 
   const handleStartStep1 = async (productId: string) => {
     try {
-      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step1`);
+      // Extract client_id (company ID) from Auth0 user metadata
+      const clientId = getClientId(user);
+      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step1?client_id=${clientId}`);
       console.log('Step 1 started for product:', productId, response.data);
       fetchProducts();
     } catch (error) {
@@ -1144,7 +1146,7 @@ export default function Products() {
                               {!isStep2Running && step2StatusLower !== 'completed' && (
                                 <Button
                                   size="sm"
-                                  onClick={() => handleStartStep2(product.id)}
+                                  onClick={() => handleStartStep1(product.id)}
                                   className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
                                   <span className="md:hidden">Continue</span>
