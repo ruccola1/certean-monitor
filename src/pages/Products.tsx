@@ -1190,6 +1190,17 @@ export default function Products() {
                                 <span className="md:hidden">View</span>
                                 <span className="hidden md:inline">{isStep0Expanded ? 'Hide details' : 'View details'}</span>
                               </Button>
+                              {(step0StatusLower === 'completed' || step0StatusLower === 'error') && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStartStep0(product.id)}
+                                  className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100 text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                                >
+                                  <span className="md:hidden">Re-run</span>
+                                  <span className="hidden md:inline">Re-run analysis</span>
+                                </Button>
+                              )}
                               {step0StatusLower === 'completed' && step1StatusLower !== 'completed' && step1StatusLower !== 'running' && (
                                 <Button
                                   size="sm"
