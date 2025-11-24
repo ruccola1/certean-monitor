@@ -1013,9 +1013,12 @@ export default function Products() {
           <div className="space-y-4">
             {products.map((product) => {
               const step0Status = product.step0Status || 'pending';
+              const step1Status = product.step1Status || 'pending';
               const step2Status = product.step2Status || 'pending';
               const step3Status = product.step3Status || 'pending';
               const step4Status = product.step4Status || 'pending';
+              const step0StatusLower = step0Status.toLowerCase();
+              const step1StatusLower = step1Status.toLowerCase();
               const step2StatusLower = step2Status.toLowerCase();
               const step3StatusLower = step3Status.toLowerCase();
               const step4StatusLower = step4Status.toLowerCase();
@@ -1143,7 +1146,7 @@ export default function Products() {
                                 <span className="md:hidden">View</span>
                                 <span className="hidden md:inline">{isStep0Expanded ? 'Hide details' : 'View details'}</span>
                               </Button>
-                              {!isStep2Running && step2StatusLower !== 'completed' && (
+                              {step0StatusLower === 'completed' && step1StatusLower !== 'completed' && step1StatusLower !== 'running' && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStartStep1(product.id)}
@@ -1153,10 +1156,11 @@ export default function Products() {
                                   <span className="hidden md:inline">Continue</span>
                                 </Button>
                               )}
-                              {isStep2Running && (
-                                <Button size="sm" disabled className="text-xs h-7">
-                                  <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-                                  Finding compliance elements...
+                              {step1StatusLower === 'running' && (
+                                <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
+                                  <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
+                                  <span className="md:hidden">Running...</span>
+                                  <span className="hidden md:inline">Assessing compliance...</span>
                                 </Button>
                               )}
                             </div>
