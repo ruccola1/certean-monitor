@@ -1067,7 +1067,7 @@ export default function Products() {
       // 4. Backend sync in background (no await blocking)
       const clientId = getClientId(user);
       
-      apiService.getInstance().post(`/api/products/${productId}/execute-step2?client_id=${clientId}`)
+      productService.executeStep2(productId, clientId)
         .then(response => {
           console.log('Step 2 started for product:', productId, response.data);
           fetchProducts();
@@ -1083,7 +1083,7 @@ export default function Products() {
           
           addNotification({
             title: 'Compliance Analysis Failed',
-            message: 'Failed to start compliance analysis',
+            message: error?.response?.data?.detail || 'Failed to start compliance analysis',
             type: 'error',
             productId: productId,
             productName: product?.name || 'Unknown',
