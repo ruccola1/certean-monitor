@@ -1142,8 +1142,8 @@ export default function Products() {
                                   onClick={() => handleStartStep2(product.id)}
                                   className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
-                                  <span className="md:hidden">Next</span>
-                                  <span className="hidden md:inline">Continue to Compliance Elements</span>
+                                  <span className="md:hidden">Continue</span>
+                                  <span className="hidden md:inline">Continue</span>
                                 </Button>
                               )}
                               {isStep2Running && (
