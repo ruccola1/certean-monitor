@@ -879,49 +879,93 @@ export default function Products() {
 
   const handleStartStep1 = async (productId: string) => {
     try {
+      // Optimistically update UI immediately
+      setProducts(prev => prev.map(p => 
+        p.id === productId 
+          ? { ...p, step1Status: 'running' }
+          : p
+      ));
+      
       // Extract client_id (company ID) from Auth0 user metadata
       const clientId = getClientId(user);
       const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step1?client_id=${clientId}`);
       console.log('Step 1 started for product:', productId, response.data);
+      
+      // Fetch to get real status
       fetchProducts();
     } catch (error) {
       console.error('Failed to start Step 1:', error);
+      // Revert optimistic update on error
+      fetchProducts();
     }
   };
 
   const handleStartStep2 = async (productId: string) => {
     try {
+      // Optimistically update UI immediately
+      setProducts(prev => prev.map(p => 
+        p.id === productId 
+          ? { ...p, step2Status: 'running' }
+          : p
+      ));
+      
       // Extract client_id (company ID) from Auth0 user metadata
       const clientId = getClientId(user);
       const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step2?client_id=${clientId}`);
       console.log('Step 2 started for product:', productId, response.data);
+      
+      // Fetch to get real status
       fetchProducts();
     } catch (error) {
       console.error('Failed to start Step 2:', error);
+      // Revert optimistic update on error
+      fetchProducts();
     }
   };
 
   const handleStartStep3 = async (productId: string) => {
     try {
+      // Optimistically update UI immediately
+      setProducts(prev => prev.map(p => 
+        p.id === productId 
+          ? { ...p, step3Status: 'running' }
+          : p
+      ));
+      
       // Extract client_id (company ID) from Auth0 user metadata
       const clientId = getClientId(user);
       const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step3?client_id=${clientId}`);
       console.log('Step 3 started for product:', productId, response.data);
+      
+      // Fetch to get real status
       fetchProducts();
     } catch (error) {
       console.error('Failed to start Step 3:', error);
+      // Revert optimistic update on error
+      fetchProducts();
     }
   };
 
   const handleStartStep4 = async (productId: string) => {
     try {
+      // Optimistically update UI immediately
+      setProducts(prev => prev.map(p => 
+        p.id === productId 
+          ? { ...p, step4Status: 'running' }
+          : p
+      ));
+      
       // Extract client_id (company ID) from Auth0 user metadata
       const clientId = getClientId(user);
       const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step4?client_id=${clientId}`);
       console.log('Step 4 started for product:', productId, response.data);
+      
+      // Fetch to get real status
       fetchProducts();
     } catch (error) {
       console.error('Failed to start Step 4:', error);
+      // Revert optimistic update on error
+      fetchProducts();
     }
   };
 
