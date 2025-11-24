@@ -51,6 +51,12 @@ interface Step0Results {
   is_sufficient?: boolean;
   missing_info?: string[];
   recommendations?: string[];
+  improvement_guidance?: string;
+  component_completeness?: Array<{
+    component_name: string;
+    completeness_percentage: number;
+    missing_details: string;
+  }>;
   // Legacy
   components?: Component[];
   summary?: string;
@@ -1618,7 +1624,20 @@ export default function Products() {
                                         {editingStep0?.productId === product.id ? (
                                           <div className="space-y-3">
                                             <div>
-                                              <label className="text-xs font-semibold text-gray-600 block mb-1">Component Name</label>
+                                              <div className="flex items-center justify-between mb-1">
+                                                <label className="text-xs font-semibold text-gray-600">Component Name</label>
+                                                {product.step0Results?.component_completeness?.find(
+                                                  (cc: any) => cc.component_name === component.name
+                                                )?.completeness_percentage !== undefined && (
+                                                  <span className={`text-xs font-mono font-bold ${
+                                                    product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage >= 70 ? 'text-green-600' :
+                                                    product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage >= 40 ? 'text-yellow-600' :
+                                                    'text-red-600'
+                                                  }`}>
+                                                    {product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage}%
+                                                  </span>
+                                                )}
+                                              </div>
                                               <input
                                                 type="text"
                                                 value={component.name || ''}
@@ -1640,13 +1659,56 @@ export default function Products() {
                                             
                                             <div>
                                               <label className="text-xs font-semibold text-gray-600 block mb-1">Materials</label>
-                                              <input
-                                                type="text"
-                                                value={component.materials || ''}
-                                                onChange={(e) => handleUpdateComponent(idx, 'materials', e.target.value)}
-                                                className="w-full text-xs px-2 py-1 bg-white border border-gray-300"
-                                                placeholder="Materials used"
-                                              />
+                                              <div className="bg-white border border-gray-300 p-2 space-y-2">
+                                                <div className="flex flex-wrap gap-2">
+                                                  {(Array.isArray(component.materials) ? component.materials : 
+                                                    typeof component.materials === 'string' && component.materials ? 
+                                                    component.materials.split(',').map((m: string) => m.trim()).filter(Boolean) : 
+                                                    []
+                                                  ).map((material: string, matIdx: number) => (
+                                                    <div key={matIdx} className="flex items-center gap-1 bg-gray-100 px-2 py-1">
+                                                      <input
+                                                        type="text"
+                                                        value={material}
+                                                        onChange={(e) => {
+                                                          const materials = Array.isArray(component.materials) ? [...component.materials] : 
+                                                            typeof component.materials === 'string' && component.materials ? 
+                                                            component.materials.split(',').map((m: string) => m.trim()).filter(Boolean) : [];
+                                                          materials[matIdx] = e.target.value;
+                                                          handleUpdateComponent(idx, 'materials', materials);
+                                                        }}
+                                                        className="text-xs px-1 py-0.5 bg-white border-0 w-24"
+                                                        placeholder="Material"
+                                                      />
+                                                      <button
+                                                        onClick={() => {
+                                                          const materials = Array.isArray(component.materials) ? [...component.materials] : 
+                                                            typeof component.materials === 'string' && component.materials ? 
+                                                            component.materials.split(',').map((m: string) => m.trim()).filter(Boolean) : [];
+                                                          materials.splice(matIdx, 1);
+                                                          handleUpdateComponent(idx, 'materials', materials);
+                                                        }}
+                                                        className="text-red-500 hover:text-red-700 text-xs"
+                                                        title="Remove material"
+                                                      >
+                                                        ✕
+                                                      </button>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                                <button
+                                                  onClick={() => {
+                                                    const materials = Array.isArray(component.materials) ? [...component.materials] : 
+                                                      typeof component.materials === 'string' && component.materials ? 
+                                                      component.materials.split(',').map((m: string) => m.trim()).filter(Boolean) : [];
+                                                    materials.push('');
+                                                    handleUpdateComponent(idx, 'materials', materials);
+                                                  }}
+                                                  className="text-xs text-gray-500 hover:text-gray-700"
+                                                >
+                                                  + Add Material
+                                                </button>
+                                              </div>
                                             </div>
                                             
                                             <div>
@@ -1715,9 +1777,22 @@ export default function Products() {
                                           </div>
                                         ) : (
                                           <>
-                                        <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                          {component.name || `Component ${idx + 1}`}
-                                        </h6>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                            {component.name || `Component ${idx + 1}`}
+                                          </h6>
+                                          {product.step0Results?.component_completeness?.find(
+                                            (cc: any) => cc.component_name === component.name
+                                          )?.completeness_percentage !== undefined && (
+                                            <span className={`text-xs font-mono font-bold ${
+                                              product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage >= 70 ? 'text-green-600' :
+                                              product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage >= 40 ? 'text-yellow-600' :
+                                              'text-red-600'
+                                            }`}>
+                                              {product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage}%
+                                            </span>
+                                          )}
+                                        </div>
                                         
                                         {/* Description */}
                                         {component.description && (
@@ -1731,8 +1806,21 @@ export default function Products() {
                                         {/* Materials */}
                                         {component.materials && (
                                           <div className="mb-3">
-                                            <span className="text-xs font-semibold text-gray-600">Materials: </span>
-                                            <span className="text-xs text-gray-700">{component.materials}</span>
+                                            <div className="text-xs font-semibold text-gray-600 mb-1">Materials</div>
+                                            <div className="flex flex-wrap gap-1.5">
+                                              {(Array.isArray(component.materials) ? component.materials : 
+                                                typeof component.materials === 'string' ? 
+                                                component.materials.split(',').map((m: string) => m.trim()).filter(Boolean) : 
+                                                []
+                                              ).map((material: string, matIdx: number) => (
+                                                <Badge 
+                                                  key={matIdx} 
+                                                  className="bg-gray-200 text-gray-800 hover:bg-gray-300 text-xs px-2 py-0.5"
+                                                >
+                                                  {material}
+                                                </Badge>
+                                              ))}
+                                            </div>
                                           </div>
                                         )}
                                         
@@ -1823,6 +1911,20 @@ export default function Products() {
                                         )}
                                       </div>
                                     ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Improvement Guidance */}
+                              {!editingStep0 && product.step0Results?.improvement_guidance && (
+                                <div className="relative">
+                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
+                                    How to Improve Comprehensiveness
+                                  </h5>
+                                  <div className="bg-blue-50 border border-blue-200 p-4">
+                                    <p className="text-xs text-gray-700 italic whitespace-pre-wrap">
+                                      {product.step0Results.improvement_guidance}
+                                    </p>
                                   </div>
                                 </div>
                               )}

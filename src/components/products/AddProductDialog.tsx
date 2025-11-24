@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, X, Plus } from 'lucide-react';
 
 interface AddProductDialogProps {
   open: boolean;
@@ -42,6 +42,12 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Component definition state
+  const [defineComponents, setDefineComponents] = useState(false);
+  const [components, setComponents] = useState<Array<{ title: string; description: string }>>([
+    { title: '', description: '' }
+  ]);
 
   // Pre-fill form when initialProduct is provided or dialog opens
   useEffect(() => {
@@ -81,6 +87,8 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setMarkets('');
       setUploadedFiles([]);
       setUploadedImages([]);
+      setDefineComponents(false);
+      setComponents([{ title: '', description: '' }]);
     }
   }, [initialProduct, open]);
 
@@ -90,6 +98,23 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setError(null);
     }
   }, [open]);
+
+  // Component management functions
+  const addComponentRow = () => {
+    setComponents([...components, { title: '', description: '' }]);
+  };
+
+  const removeComponentRow = (index: number) => {
+    if (components.length > 1) {
+      setComponents(components.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateComponent = (index: number, field: 'title' | 'description', value: string) => {
+    const updated = [...components];
+    updated[index][field] = value;
+    setComponents(updated);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +134,11 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       // Concatenate name with description (matching certean-ai frontend)
       const fullDescription = `${name}: ${description}`;
 
+      // Filter out empty components
+      const validComponents = defineComponents 
+        ? components.filter(c => c.title.trim() && c.description.trim())
+        : [];
+
       const productData = {
         products: [
           {
@@ -119,6 +149,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
             markets: markets.split(',').map(market => market.trim().toUpperCase()).filter(market => market),
             uploaded_files: uploadedFiles.map(f => f.name),
             uploaded_images: uploadedImages.map(f => f.name),
+            predefined_components: validComponents.length > 0 ? validComponents : undefined,
           }
         ]
       };
@@ -351,6 +382,71 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
                     </div>
                   )}
                 </div>
+              </div>
+
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="define-components"
+                    checked={defineComponents}
+                    onChange={(e) => setDefineComponents(e.target.checked)}
+                    className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] bg-dashboard-view-background border-0 focus:ring-0"
+                  />
+                  <Label htmlFor="define-components" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))] cursor-pointer">
+                    Define components manually
+                  </Label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Manually specify product components to guide the AI analysis
+                </p>
+
+                {defineComponents && (
+                  <div className="space-y-3 mt-4">
+                    {components.map((component, index) => (
+                      <div key={index} className="border-0 bg-dashboard-view-background p-4 space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-[hsl(var(--dashboard-link-color))]">
+                            Component {index + 1}
+                          </span>
+                          {components.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeComponentRow(index)}
+                              className="text-gray-400 hover:text-red-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Input
+                            placeholder="Component title (e.g., Battery Pack)"
+                            value={component.title}
+                            onChange={(e) => updateComponent(index, 'title', e.target.value)}
+                            className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] text-sm"
+                          />
+                          <Input
+                            placeholder="Component description (e.g., Lithium-ion battery, 3000mAh)"
+                            value={component.description}
+                            onChange={(e) => updateComponent(index, 'description', e.target.value)}
+                            className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] text-sm"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addComponentRow}
+                      className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] hover:bg-gray-300 w-full"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add another component
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="bg-dashboard-view-background p-4 space-y-2 col-span-1 md:col-span-2">
