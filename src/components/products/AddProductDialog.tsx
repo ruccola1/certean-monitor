@@ -133,20 +133,8 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       
       console.log('Product created successfully:', response);
 
-      // Auto-trigger Step 0 for the newly created product
-      if (response.data && response.data.length > 0) {
-        const productId = response.data[0].id;
-        try {
-          console.log('Starting Step 0 processing for product:', productId);
-          // Extract client_id from Auth0 user token
-          const clientId = getClientId(user);
-          await productService.executeStep0(productId, clientId);
-          console.log('Step 0 processing started successfully');
-        } catch (error) {
-          console.error('Failed to start Step 0:', error);
-        }
-      }
-
+      // Step 0 is now auto-triggered by the backend upon creation
+      
       // Reset form
       setName('');
       setDescription('');
@@ -212,8 +200,8 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] bg-white border-0">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col bg-white border-0 p-0 gap-0">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">
             {initialProduct ? 'Duplicate Product' : 'Add New Product'}
           </DialogTitle>
@@ -222,163 +210,164 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-6 py-4">
-            {error && (
-              <div className="bg-red-50 border-0 p-4 flex gap-3">
-                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-red-600">
-                  <p className="font-medium">{error}</p>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-y-auto p-6 pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {error && (
+                <div className="col-span-1 md:col-span-2 bg-red-50 border-0 p-4 flex gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-red-600">
+                    <p className="font-medium">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <Label htmlFor="name" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Product Name *
+                </Label>
+                <Input
+                  id="name"
+                  placeholder="e.g., Smart Home Speaker"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
+                />
+              </div>
+
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <Label htmlFor="description" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Description *
+                </Label>
+                <textarea
+                  id="description"
+                  placeholder="e.g., IoT temperature control device with WiFi connectivity"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  required
+                  rows={3}
+                  className="w-full border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--dashboard-link-color))]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="type" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Product Type *
+                </Label>
+                <select
+                  id="type"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as 'existing' | 'new')}
+                  className="w-full border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--dashboard-link-color))]"
+                >
+                  <option value="existing">Existing Product</option>
+                  <option value="new">New Product (in development)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="markets" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Target Markets *
+                </Label>
+                <Input
+                  id="markets"
+                  placeholder="e.g., EU, US, UK (comma-separated)"
+                  value={markets}
+                  onChange={(e) => setMarkets(e.target.value)}
+                  required
+                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
+                />
+                <p className="text-xs text-gray-500">
+                  Enter comma-separated market codes
+                </p>
+              </div>
+
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <Label htmlFor="urls" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Product URLs
+                </Label>
+                <Input
+                  id="urls"
+                  placeholder="e.g., https://example.com/product, https://..."
+                  value={urls}
+                  onChange={(e) => setUrls(e.target.value)}
+                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
+                />
+                <p className="text-xs text-gray-500">
+                  Enter comma-separated URLs (optional, helps AI analyze product)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Upload Documents (optional)
+                </Label>
+                <div className="border-0 bg-dashboard-view-background p-4 h-full">
+                  <input
+                    type="file"
+                    id="file-input"
+                    multiple
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setUploadedFiles(files);
+                    }}
+                    className="text-sm text-gray-500 w-full"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    PDF, Word, Excel, PowerPoint, Text files
+                  </p>
+                  {uploadedFiles.length > 0 && (
+                    <div className="mt-2 text-xs text-[hsl(var(--dashboard-link-color))]">
+                      {uploadedFiles.length} file(s) selected
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                Product Name *
-              </Label>
-              <Input
-                id="name"
-                placeholder="e.g., Smart Home Speaker"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                Description *
-              </Label>
-              <textarea
-                id="description"
-                placeholder="e.g., IoT temperature control device with WiFi connectivity"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-                rows={3}
-                className="w-full border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--dashboard-link-color))]"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="type" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                Product Type *
-              </Label>
-              <select
-                id="type"
-                value={type}
-                onChange={(e) => setType(e.target.value as 'existing' | 'new')}
-                className="w-full border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--dashboard-link-color))]"
-              >
-                <option value="existing">Existing Product</option>
-                <option value="new">New Product (in development)</option>
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="urls" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                Product URLs
-              </Label>
-              <Input
-                id="urls"
-                placeholder="e.g., https://example.com/product, https://..."
-                value={urls}
-                onChange={(e) => setUrls(e.target.value)}
-                className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
-              />
-              <p className="text-xs text-gray-500">
-                Enter comma-separated URLs (optional, helps AI analyze product)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="markets" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                Target Markets *
-              </Label>
-              <Input
-                id="markets"
-                placeholder="e.g., EU, US, UK (comma-separated)"
-                value={markets}
-                onChange={(e) => setMarkets(e.target.value)}
-                required
-                className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
-              />
-              <p className="text-xs text-gray-500">
-                Enter comma-separated market codes (e.g., EU, US, UK, SE). 
-                <span className="font-semibold"> Free: 1 market, Manager: 3 markets, Expert/Enterprise: Unlimited</span>
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                Upload Documents (optional)
-              </Label>
-              <div className="border-0 bg-dashboard-view-background p-4">
-                <input
-                  type="file"
-                  id="file-input"
-                  multiple
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    setUploadedFiles(files);
-                  }}
-                  className="text-sm text-gray-500"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  PDF, Word, Excel, PowerPoint, Text files
-                </p>
-                {uploadedFiles.length > 0 && (
-                  <div className="mt-2 text-xs text-[hsl(var(--dashboard-link-color))]">
-                    {uploadedFiles.length} file(s) selected
-                  </div>
-                )}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Upload Product Images (optional)
+                </Label>
+                <div className="border-0 bg-dashboard-view-background p-4 h-full">
+                  <input
+                    type="file"
+                    id="image-file-input"
+                    multiple
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setUploadedImages(files);
+                    }}
+                    className="text-sm text-gray-500 w-full"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    PNG, JPEG, JPG images for AI vision analysis
+                  </p>
+                  {uploadedImages.length > 0 && (
+                    <div className="mt-2 text-xs text-[hsl(var(--dashboard-link-color))]">
+                      {uploadedImages.length} image(s) selected
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                Upload Product Images (optional)
-              </Label>
-              <div className="border-0 bg-dashboard-view-background p-4">
-                <input
-                  type="file"
-                  id="image-file-input"
-                  multiple
-                  accept="image/png,image/jpeg,image/jpg"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    setUploadedImages(files);
-                  }}
-                  className="text-sm text-gray-500"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  PNG, JPEG, JPG images for AI vision analysis
-                </p>
-                {uploadedImages.length > 0 && (
-                  <div className="mt-2 text-xs text-[hsl(var(--dashboard-link-color))]">
-                    {uploadedImages.length} image(s) selected
-                  </div>
-                )}
+              <div className="bg-dashboard-view-background p-4 space-y-2 col-span-1 md:col-span-2">
+                <h4 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+                  What happens next?
+                </h4>
+                <ul className="space-y-1 text-xs text-gray-500">
+                  <li>• System analyzes product and identifies compliance requirements</li>
+                  <li>• Compliance elements are linked from shared knowledge base</li>
+                  <li>• You'll receive notifications for regulatory updates</li>
+                  <li>• Background processing will complete in 2-5 minutes</li>
+                </ul>
               </div>
-            </div>
-
-            <div className="bg-dashboard-view-background p-4 space-y-2">
-              <h4 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
-                What happens next?
-              </h4>
-              <ul className="space-y-1 text-xs text-gray-500">
-                <li>• System analyzes product and identifies compliance requirements</li>
-                <li>• Compliance elements are linked from shared knowledge base</li>
-                <li>• You'll receive notifications for regulatory updates</li>
-                <li>• Background processing will complete in 2-5 minutes</li>
-              </ul>
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 p-6 pt-2 border-t border-gray-100 mt-auto">
             <Button
               type="button"
               variant="outline"
@@ -399,5 +388,6 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       </DialogContent>
     </Dialog>
   );
+
 }
 

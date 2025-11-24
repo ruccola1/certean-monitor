@@ -5,9 +5,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, RefreshCw, XCircle, Eye, EyeOff, ExternalLink, Bell, MoreVertical, Edit, Copy, Share2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, XCircle, Eye, EyeOff, ExternalLink, Bell, MoreVertical, Edit, Copy, Share2 } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
@@ -45,11 +46,30 @@ interface Step0Results {
   components_count?: number;
   categories?: string[];
   materials?: string[];
+  quality_score?: number;
+  quality_reasoning?: string;
+  is_sufficient?: boolean;
+  missing_info?: string[];
+  recommendations?: string[];
   // Legacy
   components?: Component[];
   summary?: string;
   processingTime?: string;
   aiModel?: string;
+}
+
+interface Step0Payload {
+  product_decomposition?: string;
+  product_overview?: string;
+  product_name?: string;
+  product_type?: string;
+  target_markets?: string[];
+  research_sources?: Array<{ url: string; content?: string }>;
+  components?: Component[];
+  categories?: string[];
+  materials?: string[];
+  is_editable?: boolean;
+  edited?: boolean;
 }
 
 interface ComponentAssessment {
@@ -167,7 +187,7 @@ interface ProductDetails {
   step4Status: string;
   createdAt: string;
   step0Results?: Step0Results;
-  step0Payload?: any;
+  step0Payload?: Step0Payload;
   step1Results?: Step1Results;
   step2Results?: Step2Results;
   step2Payload?: any;
@@ -466,7 +486,7 @@ export default function Products() {
       materials: [...(product.step0Results.materials || [])],
       product_overview: product.step0Results.product_overview || product.description || '',
       components: [...(product.components || [])],
-      research_sources: product.step0Results.research_sources || 0,
+      research_sources: [...(product.step0Payload?.research_sources || [])],
       product_decomposition: product.step0Results.product_decomposition || '',
     };
     console.log('Edit data:', editData);
@@ -591,7 +611,7 @@ export default function Products() {
         categories: step0EditData.categories,
         materials: step0EditData.materials,
         product_overview: step0EditData.product_overview || undefined,
-        research_sources: step0EditData.research_sources || undefined,
+        research_sources: Array.isArray(step0EditData.research_sources) ? step0EditData.research_sources.length : (step0EditData.research_sources || 0),
         product_decomposition: step0EditData.product_decomposition || undefined,
       };
       
@@ -610,7 +630,7 @@ export default function Products() {
       
       addNotification({ 
         title: 'Product Details Updated',
-        message: 'Product Details changes saved successfully',
+        message: 'Product Details changes saved successfully. Step 1 will start automatically.',
         type: 'success',
         productId: productId,
         productName: product.name,
@@ -618,6 +638,10 @@ export default function Products() {
       });
       setEditingStep0(null);
       setStep0EditData(null);
+      
+      // Auto-trigger Step 1 is now handled by the backend upon update
+      // Step 1 will be started by the backend background task
+      
       fetchProducts();
     } catch (error) {
       console.error('Failed to save Step 0:', error);
@@ -894,36 +918,6 @@ export default function Products() {
     }
   };
 
-  const handleRefreshStep = async (productId: string, step: 0 | 1 | 2 | 3 | 4) => {
-    try {
-      console.log(`Refreshing Step ${step} for product:`, productId);
-      if (step === 0) {
-        await handleStartStep0(productId);
-      } else if (step === 1) {
-        await handleStartStep1(productId);
-      } else if (step === 2) {
-        await handleStartStep2(productId);
-      } else if (step === 3) {
-        await handleStartStep3(productId);
-      } else if (step === 4) {
-        await handleStartStep4(productId);
-      }
-    } catch (error) {
-      console.error(`Failed to refresh Step ${step}:`, error);
-    }
-  };
-
-  const handleStopStep = async (productId: string, step: 0 | 1 | 2 | 3 | 4) => {
-    try {
-      console.log(`Stopping Step ${step} for product:`, productId);
-      await productService.stopStep(productId, step);
-      console.log(`Step ${step} stopped successfully`);
-      fetchProducts();
-    } catch (error) {
-      console.error(`Failed to stop Step ${step}:`, error);
-    }
-  };
-
   const openDeleteDialog = (productId: string, productName: string) => {
     setDeleteDialog({ open: true, productId, productName });
   };
@@ -1010,9 +1004,42 @@ export default function Products() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {products.map((product) => (
+            {products.map((product) => {
+              const step0Status = product.step0Status || 'pending';
+              const step2Status = product.step2Status || 'pending';
+              const step3Status = product.step3Status || 'pending';
+              const step4Status = product.step4Status || 'pending';
+              const step2StatusLower = step2Status.toLowerCase();
+              const step3StatusLower = step3Status.toLowerCase();
+              const step4StatusLower = step4Status.toLowerCase();
+              const complianceElementsCount =
+                product.step2Results?.elements_count ??
+                product.step2Results?.compliance_elements?.length ??
+                0;
+              const complianceUpdatesCount =
+                product.step4Results?.updates_count ??
+                product.step4Results?.compliance_updates?.length ??
+                0;
+              const isStep0Expanded =
+                expandedStep?.productId === product.id &&
+                expandedStep?.stepNumber === 0;
+              const isStep2Expanded =
+                expandedStep?.productId === product.id &&
+                expandedStep?.stepNumber === 2;
+              const isStep4Expanded =
+                expandedStep?.productId === product.id &&
+                expandedStep?.stepNumber === 4;
+              const isStep2Running =
+                step2StatusLower === 'running' || step2StatusLower === 'processing';
+              const isStep3Running =
+                step3StatusLower === 'running' || step3StatusLower === 'processing';
+              const isStep4Running =
+                step4StatusLower === 'running' || step4StatusLower === 'processing';
+              const canStartStep4 = product.step2Status === 'completed';
+
+              return (
               <Card key={product.id} className="bg-white border-0">
-                <CardContent className="p-6">
+                <CardContent className="p-3 md:p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
@@ -1059,301 +1086,233 @@ export default function Products() {
                           </span>
                         </div>
                       </div>
-
-                      {/* Pipeline Status - Horizontal Step Boxes */}
-                      <div className="mt-4 pt-4 border-t border-gray-100">
-                        {/* Step Boxes - Responsive Layout - All 5 steps (1 & 3 are status-only markers) */}
-                        <div className="flex gap-1 sm:gap-2 mb-4 w-full">
-                          {/* Step 0 Box - Product Details */}
-                          <button
-                            onClick={(e) => {
-                              // Don't collapse if clicking on edit button area
-                              if ((e.target as HTMLElement).closest('.edit-step0-button')) {
-                                return;
-                              }
-                              if (expandedStep?.productId === product.id && expandedStep?.stepNumber === 0) {
-                                setExpandedStep(null);
-                              } else {
-                                setExpandedStep({ productId: product.id, stepNumber: 0 });
-                              }
-                            }}
-                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative flex-1 ${
-                              expandedStep?.productId === product.id && expandedStep?.stepNumber === 0
-                                ? 'bg-gray-200'
-                                : 'bg-white hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1 sm:mb-2 text-center leading-tight">Product Details</span>
-                              {getStatusBadge(product.step0Status)}
-                              {(product.step0Status === 'running' || product.step0Status === 'processing') && (
-                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
+                      <div className="mt-4 border-t border-gray-100 pt-4 space-y-4">
+                        <div className="grid grid-cols-3 gap-1 md:gap-3 pb-2 w-full">
+                          {/* Step 0 summary */}
+                          <div className="bg-white border border-gray-100 p-2 md:p-4 h-full overflow-hidden">
+                            <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
+                              <div className="min-w-0 w-full">
+                                <p className="text-[9px] md:text-[10px] font-semibold uppercase text-gray-500 truncate">
+                                  Product Details
+                                </p>
+                                <div className="flex items-baseline gap-2">
+                                  {product.step0Results?.quality_score !== undefined && product.step0Results.quality_score > 0 ? (
+                                    <>
+                                      <p className={`text-sm md:text-2xl font-mono font-bold ${
+                                        product.step0Results.quality_score >= 90 ? 'text-green-600' :
+                                        product.step0Results.quality_score >= 75 ? 'text-blue-600' :
+                                        product.step0Results.quality_score >= 50 ? 'text-yellow-600' :
+                                        'text-red-600'
+                                      }`}>
+                                        {product.step0Results.quality_score}%
+                                      </p>
+                                      <span className="text-[10px] text-gray-400 hidden md:inline">quality score</span>
+                                    </>
+                                  ) : (
+                                    <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))] truncate">
+                                      {step0Status === 'completed' ? '100%' : step0Status.toUpperCase()}
+                                    </p>
+                                  )}
+                                </div>
+                                <p className="hidden md:block text-xs text-gray-500 mt-1 truncate">
+                                  {product.step0Results?.quality_reasoning || "Review and edit before continuing."}
+                                </p>
+                              </div>
+                              <div className="scale-75 origin-top-left md:scale-100 shrink-0">
+                                {getStatusBadge(product.step0Status)}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1 md:gap-2 mt-1 md:mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  setExpandedStep(
+                                    isStep0Expanded ? null : { productId: product.id, stepNumber: 0 }
+                                  )
+                                }
+                                className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100 text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                              >
+                                <span className="md:hidden">View</span>
+                                <span className="hidden md:inline">{isStep0Expanded ? 'Hide details' : 'View details'}</span>
+                              </Button>
+                              {!isStep2Running && step2StatusLower !== 'completed' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStartStep2(product.id)}
+                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                                >
+                                  <span className="md:hidden">Next</span>
+                                  <span className="hidden md:inline">Continue to Compliance Elements</span>
+                                </Button>
+                              )}
+                              {isStep2Running && (
+                                <Button size="sm" disabled className="text-xs h-7">
+                                  <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                                  Finding compliance elements...
+                                </Button>
                               )}
                             </div>
-                            {(product.step0Status === 'completed' || product.step0Status === 'error') && (
-                              <div className="absolute top-1 right-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRefreshStep(product.id, 0);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Re-run Product Details"
-                                >
-                                  <RefreshCw className="w-3 h-3 text-gray-500" />
-                                </Button>
-                              </div>
-                            )}
-                            {(product.step0Status === 'running' || product.step0Status === 'processing') && (
-                              <div className="absolute top-1 right-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStopStep(product.id, 0);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Stop Product Details"
-                                >
-                                  <XCircle className="w-3 h-3 text-red-600" />
-                                </Button>
-                              </div>
-                            )}
-                          </button>
-
-                          {/* Step 1 Marker - Compliance Assessment (Status Only) */}
-                          <div className="border-0 p-2 sm:p-4 bg-gray-100 flex-1 relative">
-                            <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1 sm:mb-2 text-center leading-tight">Compliance Assessment</span>
-                              {getStatusBadge(product.step1Status)}
-                              {(product.step1Status === 'running' || product.step1Status === 'processing') && (
-                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
-                              )}
-                            </div>
-                            {(product.step1Status === 'completed' || product.step1Status === 'error') && (
-                              <div className="absolute top-1 right-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRefreshStep(product.id, 1);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Re-run Compliance Assessment"
-                                >
-                                  <RefreshCw className="w-3 h-3 text-gray-500" />
-                                </Button>
-                              </div>
-                            )}
-                            {(product.step1Status === 'running' || product.step1Status === 'processing') && (
-                              <div className="absolute top-1 right-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStopStep(product.id, 1);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Stop Compliance Assessment"
-                                >
-                                  <XCircle className="w-3 h-3 text-red-600" />
-                                </Button>
-                              </div>
-                            )}
                           </div>
 
-                          {/* Step 2 Box - Compliance Elements */}
-                          <button
-                            onClick={() => {
-                              if (expandedStep?.productId === product.id && expandedStep?.stepNumber === 2) {
-                                setExpandedStep(null);
-                              } else {
-                                setExpandedStep({ productId: product.id, stepNumber: 2 });
-                              }
-                            }}
-                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative flex-1 ${
-                              expandedStep?.productId === product.id && expandedStep?.stepNumber === 2
-                                ? 'bg-gray-200'
-                                : 'bg-white hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1 sm:mb-2 text-center leading-tight">Compliance Elements</span>
+                          {/* Step 2 summary */}
+                          <div className="bg-white border border-gray-100 p-2 md:p-4 h-full overflow-hidden">
+                            <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
+                              <div className="min-w-0 w-full">
+                                <p className="text-[9px] md:text-[10px] font-semibold uppercase text-gray-500 truncate">
+                                  Compliance Elements
+                                </p>
+                                <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))] truncate">
+                                  {complianceElementsCount}
+                                </p>
+                                <p className="hidden md:block text-xs text-gray-500 mt-1">elements identified</p>
+                              </div>
+                              <div className="scale-75 origin-top-left md:scale-100 shrink-0">
                               {getStatusBadge(product.step2Status)}
-                              {(product.step2Status === 'running' || product.step2Status === 'processing') && (
-                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
+                            </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1 md:gap-2 mt-1 md:mt-3">
+                              {step2StatusLower === 'completed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setExpandedStep(
+                                      isStep2Expanded ? null : { productId: product.id, stepNumber: 2 }
+                                    )
+                                  }
+                                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] hover:bg-gray-200 text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                                >
+                                  <span className="md:hidden">View</span>
+                                  <span className="hidden md:inline">{isStep2Expanded ? 'Hide elements' : 'View elements'}</span>
+                                </Button>
+                              )}
+                              {isStep2Running && (
+                                <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
+                                  <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
+                                  <span className="md:hidden">Running...</span>
+                                  <span className="hidden md:inline">Finding elements...</span>
+                                </Button>
+                              )}
+                              {!isStep2Running && step2StatusLower !== 'completed' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStartStep2(product.id)}
+                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                                >
+                                  {step2StatusLower === 'error' ? (
+                                    <>
+                                      <span className="md:hidden">Retry</span>
+                                      <span className="hidden md:inline">Retry compliance elements</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="md:hidden">Find</span>
+                                      <span className="hidden md:inline">Find compliance elements</span>
+                                    </>
+                                  )}
+                                </Button>
                               )}
                             </div>
-                            {(product.step2Status === 'completed' || product.step2Status === 'error') && (
-                              <div className="absolute top-1 right-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRefreshStep(product.id, 2);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Re-run Compliance Elements"
-                                >
-                                  <RefreshCw className="w-3 h-3 text-gray-500" />
-                                </Button>
-                              </div>
-                            )}
-                            {(product.step2Status === 'running' || product.step2Status === 'processing') && (
-                              <div className="absolute top-1 right-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStopStep(product.id, 2);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Stop Compliance Elements"
-                                >
-                                  <XCircle className="w-3 h-3 text-red-600" />
-                                </Button>
-                              </div>
-                            )}
-                          </button>
-
-                          {/* Step 3 Marker - Element Mapping (Status Only) */}
-                          <div className="border-0 p-2 sm:p-4 bg-gray-100 flex-1 relative">
-                            <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-[10px] sm:text-xs font-semibold text-gray-500 mb-1 sm:mb-2 text-center leading-tight">Element Mapping</span>
-                              {getStatusBadge(product.step3Status)}
-                              {(product.step3Status === 'running' || product.step3Status === 'processing') && (
-                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
-                              )}
-                            </div>
-                            {(product.step3Status === 'completed' || product.step3Status === 'error') && (
-                              <div className="absolute top-1 right-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRefreshStep(product.id, 3);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Re-run Element Mapping"
-                                >
-                                  <RefreshCw className="w-3 h-3 text-gray-500" />
-                                </Button>
-                              </div>
-                            )}
-                            {(product.step3Status === 'running' || product.step3Status === 'processing') && (
-                              <div className="absolute top-1 right-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStopStep(product.id, 3);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Stop Element Mapping"
-                                >
-                                  <XCircle className="w-3 h-3 text-red-600" />
-                                </Button>
-                              </div>
-                            )}
                           </div>
 
-                          {/* Step 4 Box - Compliance Updates */}
-                          <button
-                            onClick={() => {
-                              if (expandedStep?.productId === product.id && expandedStep?.stepNumber === 4) {
-                                setExpandedStep(null);
-                              } else {
-                                setExpandedStep({ productId: product.id, stepNumber: 4 });
-                              }
-                            }}
-                            className={`border-0 p-2 sm:p-4 transition-colors text-left relative flex-1 ${
-                              expandedStep?.productId === product.id && expandedStep?.stepNumber === 4
-                                ? 'bg-gray-200'
-                                : 'bg-white hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex flex-col items-center justify-center h-full">
-                              <span className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1 sm:mb-2 text-center leading-tight">Compliance Updates</span>
-                              {getStatusBadge(product.step4Status)}
-                              {(product.step4Status === 'running' || product.step4Status === 'processing') && (
-                                <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--dashboard-link-color))] mt-1" />
-                              )}
+                          {/* Step 4 summary */}
+                          <div className="bg-white border border-gray-100 p-2 md:p-4 h-full overflow-hidden">
+                            <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
+                              <div className="min-w-0 w-full">
+                                <p className="text-[9px] md:text-[10px] font-semibold uppercase text-gray-500 truncate">
+                                  Compliance Updates
+                                </p>
+                                <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))] truncate">
+                                  {complianceUpdatesCount}
+                                </p>
+                                <p className="hidden md:block text-xs text-gray-500 mt-1">updates tracked</p>
+                              </div>
+                              <div className="scale-75 origin-top-left md:scale-100 shrink-0">
+                                {getStatusBadge(product.step4Status)}
+                              </div>
                             </div>
-                            {(product.step4Status === 'completed' || product.step4Status === 'error') && (
-                              <div className="absolute top-1 right-1">
+                            <div className="flex flex-wrap gap-1 md:gap-2 mt-1 md:mt-3">
+                              {step4StatusLower === 'completed' && (
                                 <Button
-                                  variant="ghost"
+                                  variant="outline"
                                   size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRefreshStep(product.id, 4);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Re-run Compliance Updates"
+                                  onClick={() =>
+                                    setExpandedStep(
+                                      isStep4Expanded ? null : { productId: product.id, stepNumber: 4 }
+                                    )
+                                  }
+                                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] hover:bg-gray-200 text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
-                                  <RefreshCw className="w-3 h-3 text-gray-500" />
+                                  <span className="md:hidden">View</span>
+                                  <span className="hidden md:inline">{isStep4Expanded ? 'Hide updates' : 'View updates'}</span>
                                 </Button>
-                              </div>
-                            )}
-                            {(product.step4Status === 'running' || product.step4Status === 'processing') && (
-                              <div className="absolute top-1 right-1">
+                              )}
+                              {!canStartStep4 ? (
+                                <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto truncate" title="Run compliance elements first">
+                                  <span className="md:hidden">Wait for Step 2</span>
+                                  <span className="hidden md:inline">Run compliance elements first</span>
+                                </Button>
+                              ) : (isStep3Running || isStep4Running) ? (
+                                <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
+                                  <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
+                                  <span className="md:hidden">Running...</span>
+                                  <span className="hidden md:inline">Generating updates...</span>
+                                </Button>
+                              ) : step4StatusLower !== 'completed' ? (
                                 <Button
-                                  variant="ghost"
                                   size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStopStep(product.id, 4);
-                                  }}
-                                  className="h-5 w-5 p-0"
-                                  title="Stop Compliance Updates"
+                                  onClick={() => handleStartStep3(product.id)}
+                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
-                                  <XCircle className="w-3 h-3 text-red-600" />
+                                  {step4StatusLower === 'error' ? (
+                                    <>
+                                      <span className="md:hidden">Retry</span>
+                                      <span className="hidden md:inline">Retry updates</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="md:hidden">Generate</span>
+                                      <span className="hidden md:inline">Generate compliance updates</span>
+                                    </>
+                                  )}
                                 </Button>
-                              </div>
-                            )}
-                          </button>
+                              ) : null}
+                            </div>
+                          </div>
                         </div>
-                          
-                          {/* Expandable Step 0 Results */}
-                          {expandedStep?.productId === product.id && expandedStep?.stepNumber === 0 && product.step0Results && (
-                            <div className="ml-6 mt-2 space-y-4">
+
+                        {/* Expandable Step 0 Results */}
+                        {isStep0Expanded && product.step0Results && (
+                            <div className="ml-0 md:ml-6 mt-2 space-y-4">
                               {/* Edit Controls - Fixed at top right */}
                               <div className="flex justify-end mb-2">
                                 {editingStep0?.productId === product.id ? (
                                   <div className="flex gap-2">
                                     <Button
-                                      onClick={(e) => {
+                                  onClick={(e) => {
                                         e.preventDefault();
-                                        e.stopPropagation();
+                                    e.stopPropagation();
                                         handleSaveStep0(product.id);
-                                      }}
+                                  }}
                                       size="sm"
                                       className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-xs px-3 py-1.5 h-7"
-                                    >
+                                >
                                       Save
-                                    </Button>
-                                    <Button
-                                      onClick={(e) => {
+                                </Button>
+                                <Button
+                                  onClick={(e) => {
                                         e.preventDefault();
-                                        e.stopPropagation();
+                                    e.stopPropagation();
                                         handleCancelEditStep0();
-                                      }}
+                                  }}
                                       size="sm"
                                       variant="outline"
                                       className="text-xs px-3 py-1.5 h-7"
-                                    >
+                                >
                                       Cancel
-                                    </Button>
-                                  </div>
+                                </Button>
+                              </div>
                                 ) : (
                                   <button
                                     type="button"
@@ -1370,10 +1329,10 @@ export default function Products() {
                                   >
                                     <Edit className="w-4 h-4" />
                                     <span>Edit</span>
-                                  </button>
+                          </button>
                                 )}
-                              </div>
-                              
+                        </div>
+                          
                               {/* Categories and Materials at the TOP */}
                               <div className="space-y-3">
                                 {/* Categories - First */}
@@ -1777,7 +1736,7 @@ export default function Products() {
                                                 </button>
                                               </div>
                                             ) : (
-                                            <div className="bg-white border-0">
+                                            <div className="bg-white border-0 overflow-x-auto">
                                               <table className="w-full text-xs">
                                                 <tbody>
                                                     {Object.entries(component.technical_specifications || {}).map(([key, value], specIdx) => (
@@ -1804,11 +1763,11 @@ export default function Products() {
 
                               {/* Research Sources */}
                               {((editingStep0?.productId === product.id) || 
-                                (!editingStep0 && product.step0Results.research_sources && product.step0Results.research_sources > 0)) && (
+                                (!editingStep0 && product.step0Payload?.research_sources && product.step0Payload.research_sources.length > 0)) && (
                                 <div className="relative">
                                   <div className="flex items-center justify-between mb-2">
                                     <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
-                                      Research Sources ({editingStep0?.productId === product.id ? (step0EditData?.research_sources || 0) : product.step0Results.research_sources})
+                                      Research Sources ({editingStep0?.productId === product.id ? (step0EditData?.research_sources?.length || 0) : (product.step0Payload?.research_sources?.length || 0)})
                                   </h5>
                                     {editingStep0?.productId === product.id && (
                                       <button
@@ -1818,16 +1777,112 @@ export default function Products() {
                                           handleRemoveStep0Section('sources');
                                         }}
                                         className="text-red-500 hover:text-red-700 z-10"
-                                        title="Remove Research Sources"
+                                        title="Remove All Research Sources"
                                       >
                                         <XCircle className="w-4 h-4" />
                                       </button>
                                     )}
                                   </div>
                                   <div className="bg-dashboard-view-background p-4 space-y-2">
-                                    <p className="text-xs text-gray-600">
-                                      {editingStep0?.productId === product.id ? step0EditData?.research_sources : product.step0Results.research_sources} sources used. Sources can be managed in Step 1.
-                                    </p>
+                                    {editingStep0?.productId === product.id ? (
+                                      <>
+                                        {/* List of sources with remove buttons */}
+                                        {step0EditData?.research_sources && step0EditData.research_sources.length > 0 ? (
+                                          <div className="space-y-2 mb-4">
+                                            {step0EditData.research_sources.map((source: any, idx: number) => (
+                                              <div key={idx} className="flex items-start gap-2 bg-white p-2 border-0">
+                                                <span className="text-xs text-gray-500 mt-0.5">{idx + 1}.</span>
+                                                <a 
+                                                  href={source.url} 
+                                                  target="_blank" 
+                                                  rel="noopener noreferrer"
+                                                  className="text-xs text-[hsl(var(--dashboard-link-color))] hover:underline flex-1 break-all"
+                                                >
+                                                  {source.url}
+                                                </a>
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    const newSources = [...(step0EditData.research_sources || [])];
+                                                    newSources.splice(idx, 1);
+                                                    setStep0EditData({ ...step0EditData, research_sources: newSources });
+                                                  }}
+                                                  className="text-red-500 hover:text-red-700 shrink-0"
+                                                  title="Remove this source"
+                                                >
+                                                  <XCircle className="w-3 h-3" />
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-gray-500 mb-4">No sources yet. Add sources below.</p>
+                                        )}
+                                        
+                                        {/* Add new source input */}
+                                        <div className="flex gap-2">
+                                          <Input
+                                            type="url"
+                                            placeholder="https://example.com/product-info"
+                                            className="flex-1 text-xs border-0 bg-white"
+                                            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                                              if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                const input = e.currentTarget;
+                                                const url = input.value.trim();
+                                                if (url) {
+                                                  const newSources = [...(step0EditData?.research_sources || []), { url, content: '' }];
+                                                  setStep0EditData({ ...step0EditData, research_sources: newSources });
+                                                  input.value = '';
+                                                }
+                                              }
+                                            }}
+                                          />
+                                          <Button
+                                            size="sm"
+                                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                              e.preventDefault();
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              const url = input?.value.trim();
+                                              if (url) {
+                                                const newSources = [...(step0EditData?.research_sources || []), { url, content: '' }];
+                                                setStep0EditData({ ...step0EditData, research_sources: newSources });
+                                                input.value = '';
+                                              }
+                                            }}
+                                            className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-xs"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        {/* Display mode - show list of sources */}
+                                        {product.step0Payload?.research_sources && product.step0Payload.research_sources.length > 0 ? (
+                                          <div className="space-y-2">
+                                            {product.step0Payload.research_sources.map((source: any, idx: number) => (
+                                              <div key={idx} className="flex items-start gap-2">
+                                                <span className="text-xs text-gray-500 mt-0.5">{idx + 1}.</span>
+                                                <a 
+                                                  href={source.url} 
+                                                  target="_blank" 
+                                                  rel="noopener noreferrer"
+                                                  className="text-xs text-[hsl(var(--dashboard-link-color))] hover:underline break-all"
+                                                >
+                                                  {source.url}
+                                                </a>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-gray-600">
+                                            {product.step0Results?.research_sources || 0} sources used during analysis.
+                                          </p>
+                                        )}
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -1874,11 +1929,9 @@ export default function Products() {
                             </div>
                           )}
 
-                        {/* Step 1 - Shown as status marker only, not expandable */}
-
                         {/* Expandable Step 2 Results */}
-                          {expandedStep?.productId === product.id && expandedStep?.stepNumber === 2 && product.step2Results && (
-                            <div className="ml-6 mt-2 relative">
+                        {isStep2Expanded && product.step2Results && (
+                            <div className="ml-0 md:ml-6 mt-2 relative">
                               {/* Edit Icon - Top Right */}
                               <div className="absolute top-0 right-0">
                                 {editingStep2?.productId === product.id ? (
@@ -2233,11 +2286,9 @@ export default function Products() {
                             </div>
                           )}
 
-                        {/* Step 3 - Shown as status marker only, not expandable */}
-
                         {/* Expandable Step 4 Results */}
-                          {expandedStep?.productId === product.id && expandedStep?.stepNumber === 4 && product.step4Results && (
-                            <div className="ml-6 mt-2">
+                        {isStep4Expanded && product.step4Results && (
+                            <div className="ml-0 md:ml-6 mt-2">
                               <div className="mb-3">
                                 <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
                                   Compliance Updates ({product.step4Results.updates_count || 0})
@@ -2821,7 +2872,8 @@ export default function Products() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>
