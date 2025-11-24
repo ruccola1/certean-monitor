@@ -172,6 +172,31 @@
     box-shadow: none !important;
   }
   
+  /* Smooth transitions for interactive elements */
+  button, a, [role="button"], input, textarea, select {
+    transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+  }
+  
+  /* Button press effect */
+  button:active:not(:disabled), 
+  [role="button"]:active:not([disabled]) {
+    transform: translateY(1px);
+  }
+  
+  /* Disabled state */
+  button:disabled, 
+  [role="button"][disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  /* Hover effects for clickable elements */
+  button:hover:not(:disabled),
+  a:hover,
+  [role="button"]:hover:not([disabled]) {
+    opacity: 0.9;
+  }
+  
   /* Remove focus outlines from Recharts elements */
   .recharts-wrapper *:focus,
   .recharts-wrapper *:focus-visible,

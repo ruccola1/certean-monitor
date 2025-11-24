@@ -251,6 +251,10 @@ export default function Products() {
     productId: '',
     productName: ''
   });
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Track which steps are being executed for loading states
+  const [executingSteps, setExecutingSteps] = useState<Set<string>>(new Set());
   
   // Edit mode state
   const [editingStep0, setEditingStep0] = useState<{ productId: string } | null>(null);
@@ -279,6 +283,12 @@ export default function Products() {
 
   const fetchProducts = async () => {
     try {
+      // Don't fetch if user isn't loaded yet
+      if (!user?.sub) {
+        console.log('User not loaded yet, skipping products fetch');
+        return;
+      }
+
       // Set API key
       const apiKey = import.meta.env.VITE_CERTEAN_API_KEY;
       if (apiKey) {
@@ -287,17 +297,39 @@ export default function Products() {
 
       // Extract client_id (company ID) from Auth0 user metadata
       const clientId = getClientId(user);
+      console.log('Fetching products for client:', clientId);
+      
       const response = await productService.getAll(clientId);
+      console.log('Products fetched:', response.data?.length || 0);
+      
       setProducts((response.data || []) as unknown as ProductDetails[]);
     } catch (error) {
       console.error('Error fetching products:', error);
+      // Don't clear products on error - keep showing what we have
+      // Only show notification if this is not initial load
+      if (!loading) {
+        addNotification({
+          type: 'error',
+          title: 'Failed to Refresh Products',
+          message: 'Could not connect to backend. Retrying...',
+          productId: '',
+          productName: '',
+          step: 0,
+        });
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Fetch products immediately when component mounts
+    // Wait for user to be loaded before fetching
+    if (!user?.sub) {
+      console.log('Waiting for user to load...');
+      return;
+    }
+
+    // Fetch products immediately when user is loaded
     fetchProducts();
     fetchComplianceAreas();
 
@@ -309,7 +341,7 @@ export default function Products() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, []);
+  }, [user?.sub]); // Re-run when user loads
 
   const fetchComplianceAreas = async () => {
     try {
@@ -363,6 +395,9 @@ export default function Products() {
   
   // Force refresh when navigating to this page
   useEffect(() => {
+    // Only set up listeners if user is loaded
+    if (!user?.sub) return;
+
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         fetchProducts();
@@ -376,7 +411,7 @@ export default function Products() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', fetchProducts);
     };
-  }, []);
+  }, [user?.sub]); // Re-run when user loads
 
   // Detect status changes and send notifications
   useEffect(() => {
@@ -864,114 +899,388 @@ export default function Products() {
   };
 
   const handleStartStep0 = async (productId: string) => {
+    const stepKey = `${productId}-step0`;
+    
     try {
-      console.log('🚀 Starting Step 0 for product:', productId);
-      // Extract client_id (company ID) from Auth0 user metadata
+      // 1. Add to executing set for loading state
+      setExecutingSteps(prev => new Set(prev).add(stepKey));
+      
+      // 2. INSTANT UI UPDATE - Set status to running
+      setProducts(prev => prev.map(p => 
+        p.id === productId 
+          ? { ...p, step0Status: 'running' }
+          : p
+      ));
+      
+      // 3. Show immediate notification
+      const product = products.find(p => p.id === productId);
+      addNotification({
+        title: 'Analysis Started',
+        message: 'Product analysis is now running...',
+        type: 'info',
+        productId: productId,
+        productName: product?.name || 'Unknown',
+        step: 0
+      });
+      
+      // 4. Backend sync in background (no await blocking)
       const clientId = getClientId(user);
-      console.log('🔑 Using clientId (company):', clientId);
-      const response = await productService.executeStep0(productId, clientId);
-      console.log('✅ Step 0 started successfully:', response);
-      fetchProducts();
+      console.log('🚀 Starting Step 0 for product:', productId);
+      
+      productService.executeStep0(productId, clientId)
+        .then(() => {
+          console.log('✅ Step 0 started successfully');
+          fetchProducts(); // Refresh to get actual status
+        })
+        .catch(error => {
+          console.error('❌ Failed to start Step 0:', error);
+          
+          // Rollback on error
+          setProducts(prev => prev.map(p => 
+            p.id === productId 
+              ? { ...p, step0Status: 'error' }
+              : p
+          ));
+          
+          addNotification({
+            title: 'Analysis Failed',
+            message: error instanceof Error ? error.message : 'Failed to start analysis',
+            type: 'error',
+            productId: productId,
+            productName: product?.name || 'Unknown',
+            step: 0
+          });
+        })
+        .finally(() => {
+          // Remove from executing set
+          setExecutingSteps(prev => {
+            const next = new Set(prev);
+            next.delete(stepKey);
+            return next;
+          });
+        });
+      
     } catch (error) {
       console.error('❌ Failed to start Step 0:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        response: (error as any)?.response?.data
+      setExecutingSteps(prev => {
+        const next = new Set(prev);
+        next.delete(stepKey);
+        return next;
       });
-      alert(`Failed to start Step 0: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
   const handleStartStep1 = async (productId: string) => {
+    const stepKey = `${productId}-step1`;
+    
     try {
-      // Optimistically update UI immediately
+      // 1. Add to executing set for loading state
+      setExecutingSteps(prev => new Set(prev).add(stepKey));
+      
+      // 2. INSTANT UI UPDATE - Set status to running
       setProducts(prev => prev.map(p => 
         p.id === productId 
           ? { ...p, step1Status: 'running' }
           : p
       ));
       
-      // Extract client_id (company ID) from Auth0 user metadata
-      const clientId = getClientId(user);
-      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step1?client_id=${clientId}`);
-      console.log('Step 1 started for product:', productId, response.data);
+      // 3. Show immediate notification
+      const product = products.find(p => p.id === productId);
+      addNotification({
+        title: 'Regulation Search Started',
+        message: 'Searching for applicable regulations...',
+        type: 'info',
+        productId: productId,
+        productName: product?.name || 'Unknown',
+        step: 1
+      });
       
-      // Fetch to get real status
-      fetchProducts();
+      // 4. Backend sync in background (no await blocking)
+      const clientId = getClientId(user);
+      
+      apiService.getInstance().post(`/api/products/${productId}/execute-step1?client_id=${clientId}`)
+        .then(response => {
+          console.log('Step 1 started for product:', productId, response.data);
+          fetchProducts();
+        })
+        .catch(error => {
+          console.error('Failed to start Step 1:', error);
+          
+          setProducts(prev => prev.map(p => 
+            p.id === productId 
+              ? { ...p, step1Status: 'error' }
+              : p
+          ));
+          
+          addNotification({
+            title: 'Regulation Search Failed',
+            message: 'Failed to start regulation search',
+            type: 'error',
+            productId: productId,
+            productName: product?.name || 'Unknown',
+            step: 1
+          });
+        })
+        .finally(() => {
+          setExecutingSteps(prev => {
+            const next = new Set(prev);
+            next.delete(stepKey);
+            return next;
+          });
+        });
+      
     } catch (error) {
       console.error('Failed to start Step 1:', error);
-      // Revert optimistic update on error
-      fetchProducts();
+      setExecutingSteps(prev => {
+        const next = new Set(prev);
+        next.delete(stepKey);
+        return next;
+      });
     }
   };
 
   const handleStartStep2 = async (productId: string) => {
+    const stepKey = `${productId}-step2`;
+    
     try {
-      // Optimistically update UI immediately
+      // 1. Add to executing set for loading state
+      setExecutingSteps(prev => new Set(prev).add(stepKey));
+      
+      // 2. INSTANT UI UPDATE - Set status to running
       setProducts(prev => prev.map(p => 
         p.id === productId 
           ? { ...p, step2Status: 'running' }
           : p
       ));
       
-      // Extract client_id (company ID) from Auth0 user metadata
-      const clientId = getClientId(user);
-      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step2?client_id=${clientId}`);
-      console.log('Step 2 started for product:', productId, response.data);
+      // 3. Show immediate notification
+      const product = products.find(p => p.id === productId);
+      addNotification({
+        title: 'Compliance Analysis Started',
+        message: 'Analyzing compliance requirements...',
+        type: 'info',
+        productId: productId,
+        productName: product?.name || 'Unknown',
+        step: 2
+      });
       
-      // Fetch to get real status
-      fetchProducts();
+      // 4. Backend sync in background (no await blocking)
+      const clientId = getClientId(user);
+      
+      apiService.getInstance().post(`/api/products/${productId}/execute-step2?client_id=${clientId}`)
+        .then(response => {
+          console.log('Step 2 started for product:', productId, response.data);
+          fetchProducts();
+        })
+        .catch(error => {
+          console.error('Failed to start Step 2:', error);
+          
+          setProducts(prev => prev.map(p => 
+            p.id === productId 
+              ? { ...p, step2Status: 'error' }
+              : p
+          ));
+          
+          addNotification({
+            title: 'Compliance Analysis Failed',
+            message: 'Failed to start compliance analysis',
+            type: 'error',
+            productId: productId,
+            productName: product?.name || 'Unknown',
+            step: 2
+          });
+        })
+        .finally(() => {
+          setExecutingSteps(prev => {
+            const next = new Set(prev);
+            next.delete(stepKey);
+            return next;
+          });
+        });
+      
     } catch (error) {
       console.error('Failed to start Step 2:', error);
-      // Revert optimistic update on error
-      fetchProducts();
+      setExecutingSteps(prev => {
+        const next = new Set(prev);
+        next.delete(stepKey);
+        return next;
+      });
     }
   };
 
   const handleStartStep3 = async (productId: string) => {
+    const stepKey = `${productId}-step3`;
+    
     try {
-      // Optimistically update UI immediately
+      // 1. Add to executing set for loading state
+      setExecutingSteps(prev => new Set(prev).add(stepKey));
+      
+      // 2. INSTANT UI UPDATE - Set status to running
       setProducts(prev => prev.map(p => 
         p.id === productId 
           ? { ...p, step3Status: 'running' }
           : p
       ));
       
-      // Extract client_id (company ID) from Auth0 user metadata
-      const clientId = getClientId(user);
-      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step3?client_id=${clientId}`);
-      console.log('Step 3 started for product:', productId, response.data);
+      // 3. Show immediate notification
+      const product = products.find(p => p.id === productId);
+      addNotification({
+        title: 'Gap Analysis Started',
+        message: 'Analyzing compliance gaps...',
+        type: 'info',
+        productId: productId,
+        productName: product?.name || 'Unknown',
+        step: 3
+      });
       
-      // Fetch to get real status
-      fetchProducts();
+      // 4. Backend sync in background (no await blocking)
+      const clientId = getClientId(user);
+      
+      apiService.getInstance().post(`/api/products/${productId}/execute-step3?client_id=${clientId}`)
+        .then(response => {
+          console.log('Step 3 started for product:', productId, response.data);
+          fetchProducts();
+        })
+        .catch(error => {
+          console.error('Failed to start Step 3:', error);
+          
+          setProducts(prev => prev.map(p => 
+            p.id === productId 
+              ? { ...p, step3Status: 'error' }
+              : p
+          ));
+          
+          addNotification({
+            title: 'Gap Analysis Failed',
+            message: 'Failed to start gap analysis',
+            type: 'error',
+            productId: productId,
+            productName: product?.name || 'Unknown',
+            step: 3
+          });
+        })
+        .finally(() => {
+          setExecutingSteps(prev => {
+            const next = new Set(prev);
+            next.delete(stepKey);
+            return next;
+          });
+        });
+      
     } catch (error) {
       console.error('Failed to start Step 3:', error);
-      // Revert optimistic update on error
-      fetchProducts();
+      setExecutingSteps(prev => {
+        const next = new Set(prev);
+        next.delete(stepKey);
+        return next;
+      });
     }
   };
 
   const handleStartStep4 = async (productId: string) => {
+    const stepKey = `${productId}-step4`;
+    
     try {
-      // Optimistically update UI immediately
+      // 1. Add to executing set for loading state
+      setExecutingSteps(prev => new Set(prev).add(stepKey));
+      
+      // 2. INSTANT UI UPDATE - Set status to running
       setProducts(prev => prev.map(p => 
         p.id === productId 
           ? { ...p, step4Status: 'running' }
           : p
       ));
       
-      // Extract client_id (company ID) from Auth0 user metadata
-      const clientId = getClientId(user);
-      const response = await apiService.getInstance().post(`/api/products/${productId}/execute-step4?client_id=${clientId}`);
-      console.log('Step 4 started for product:', productId, response.data);
+      // 3. Show immediate notification
+      const product = products.find(p => p.id === productId);
+      addNotification({
+        title: 'Report Generation Started',
+        message: 'Generating compliance report...',
+        type: 'info',
+        productId: productId,
+        productName: product?.name || 'Unknown',
+        step: 4
+      });
       
-      // Fetch to get real status
-      fetchProducts();
+      // 4. Backend sync in background (no await blocking)
+      const clientId = getClientId(user);
+      
+      apiService.getInstance().post(`/api/products/${productId}/execute-step4?client_id=${clientId}`)
+        .then(response => {
+          console.log('Step 4 started for product:', productId, response.data);
+          fetchProducts();
+        })
+        .catch(error => {
+          console.error('Failed to start Step 4:', error);
+          
+          setProducts(prev => prev.map(p => 
+            p.id === productId 
+              ? { ...p, step4Status: 'error' }
+              : p
+          ));
+          
+          addNotification({
+            title: 'Report Generation Failed',
+            message: 'Failed to generate compliance report',
+            type: 'error',
+            productId: productId,
+            productName: product?.name || 'Unknown',
+            step: 4
+          });
+        })
+        .finally(() => {
+          setExecutingSteps(prev => {
+            const next = new Set(prev);
+            next.delete(stepKey);
+            return next;
+          });
+        });
+      
     } catch (error) {
       console.error('Failed to start Step 4:', error);
-      // Revert optimistic update on error
+      setExecutingSteps(prev => {
+        const next = new Set(prev);
+        next.delete(stepKey);
+        return next;
+      });
+    }
+  };
+
+  const handleStopStep = async (productId: string, step: 0 | 1 | 2 | 3 | 4) => {
+    const stepKey = `${productId}-step${step}`;
+    
+    try {
+      await productService.stopStep(productId, step);
+      
+      // Remove from executing steps
+      setExecutingSteps(prev => {
+        const next = new Set(prev);
+        next.delete(stepKey);
+        return next;
+      });
+      
+      // Refresh products to get updated status
       fetchProducts();
+      
+      addNotification({
+        title: 'Step Stopped',
+        message: `Step ${step} has been cancelled.`,
+        type: 'info',
+        productId,
+        productName: products.find(p => p.id === productId)?.name || 'Product',
+        step
+      });
+    } catch (error) {
+      console.error(`Failed to stop Step ${step}:`, error);
+      
+      addNotification({
+        title: 'Stop Failed',
+        message: `Failed to stop Step ${step}. It may have already completed.`,
+        type: 'error',
+        productId,
+        productName: products.find(p => p.id === productId)?.name || 'Product',
+        step
+      });
     }
   };
 
@@ -980,15 +1289,39 @@ export default function Products() {
   };
 
   const confirmDelete = async () => {
+    const productIdToDelete = deleteDialog.productId;
+    const productNameToDelete = deleteDialog.productName;
+    
+    setIsDeleting(true);
+    
     try {
-      await productService.delete(deleteDialog.productId);
-      console.log('Product deleted:', deleteDialog.productId);
-      // Close dialog
+      // 1. INSTANT UI UPDATE - Remove from list immediately
+      setProducts(prev => prev.filter(p => p.id !== productIdToDelete));
+      
+      // 2. Close dialog immediately
       setDeleteDialog({ open: false, productId: '', productName: '' });
-      // Refresh products list
-      fetchProducts();
+      
+      // 3. Backend sync in background
+      await productService.delete(productIdToDelete);
+      console.log('Product deleted:', productIdToDelete);
+      
     } catch (error) {
       console.error('Failed to delete product:', error);
+      
+      // 4. ROLLBACK on failure - restore the list
+      fetchProducts();
+      
+      // Show error notification
+      addNotification({
+        title: 'Delete Failed',
+        message: `Failed to delete ${productNameToDelete}. Please try again.`,
+        type: 'error',
+        productId: productIdToDelete,
+        productName: productNameToDelete,
+        step: 0
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1072,6 +1405,14 @@ export default function Products() {
               const step2StatusLower = step2Status.toLowerCase();
               const step3StatusLower = step3Status.toLowerCase();
               const step4StatusLower = step4Status.toLowerCase();
+              
+              // Check if steps are being executed (for loading states)
+              const isExecutingStep0 = executingSteps.has(`${product.id}-step0`);
+              const isExecutingStep1 = executingSteps.has(`${product.id}-step1`);
+              const isExecutingStep2 = executingSteps.has(`${product.id}-step2`);
+              const isExecutingStep3 = executingSteps.has(`${product.id}-step3`);
+              const isExecutingStep4 = executingSteps.has(`${product.id}-step4`);
+              
               const complianceElementsCount =
                 product.step2Results?.elements_count ??
                 product.step2Results?.compliance_elements?.length ??
@@ -1201,28 +1542,52 @@ export default function Products() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleStartStep0(product.id)}
+                                  disabled={isExecutingStep0}
                                   className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100 text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
-                                  <span className="md:hidden">Re-run</span>
-                                  <span className="hidden md:inline">Re-run analysis</span>
+                                  {isExecutingStep0 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                  <span className="md:hidden">{isExecutingStep0 ? 'Starting...' : 'Re-run'}</span>
+                                  <span className="hidden md:inline">{isExecutingStep0 ? 'Starting analysis...' : 'Re-run analysis'}</span>
+                                </Button>
+                              )}
+                              {step0StatusLower === 'running' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStopStep(product.id, 0)}
+                                  className="bg-gray-400 hover:bg-gray-500 text-white p-0 h-6 w-6 md:h-7 md:w-7"
+                                  title="Stop Step 0"
+                                >
+                                  ■
                                 </Button>
                               )}
                               {step0StatusLower === 'completed' && step1StatusLower !== 'completed' && step1StatusLower !== 'running' && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStartStep1(product.id)}
+                                  disabled={isExecutingStep1}
                                   className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
-                                  <span className="md:hidden">Continue</span>
+                                  {isExecutingStep1 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                  <span className="md:hidden">{isExecutingStep1 ? 'Starting...' : 'Continue'}</span>
                                   <span className="hidden md:inline">Continue</span>
                                 </Button>
                               )}
                               {step1StatusLower === 'running' && (
-                                <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
-                                  <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
-                                  <span className="md:hidden">Running...</span>
-                                  <span className="hidden md:inline">Assessing compliance...</span>
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
+                                    <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
+                                    <span className="md:hidden">Running...</span>
+                                    <span className="hidden md:inline">Assessing compliance...</span>
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleStopStep(product.id, 1)}
+                                    className="bg-gray-400 hover:bg-gray-500 text-white p-0 h-6 w-6 md:h-7 md:w-7"
+                                    title="Stop Step 1"
+                                  >
+                                    ■
+                                  </Button>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -1260,19 +1625,36 @@ export default function Products() {
                                 </Button>
                               )}
                               {isStep2Running && (
-                                <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
-                                  <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
-                                  <span className="md:hidden">Running...</span>
-                                  <span className="hidden md:inline">Finding elements...</span>
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
+                                    <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
+                                    <span className="md:hidden">Running...</span>
+                                    <span className="hidden md:inline">Finding elements...</span>
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleStopStep(product.id, 2)}
+                                    className="bg-gray-400 hover:bg-gray-500 text-white p-0 h-6 w-6 md:h-7 md:w-7"
+                                    title="Stop Step 2"
+                                  >
+                                    ■
+                                  </Button>
+                                </div>
                               )}
                               {!isStep2Running && step2StatusLower !== 'completed' && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStartStep2(product.id)}
+                                  disabled={isExecutingStep2}
                                   className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
-                                  {step2StatusLower === 'error' ? (
+                                  {isExecutingStep2 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                  {isExecutingStep2 ? (
+                                    <>
+                                      <span className="md:hidden">Starting...</span>
+                                      <span className="hidden md:inline">Starting...</span>
+                                    </>
+                                  ) : step2StatusLower === 'error' ? (
                                     <>
                                       <span className="md:hidden">Retry</span>
                                       <span className="hidden md:inline">Retry compliance elements</span>
@@ -1326,18 +1708,35 @@ export default function Products() {
                                   <span className="hidden md:inline">Run compliance elements first</span>
                                 </Button>
                               ) : (isStep3Running || isStep4Running) ? (
-                                <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
-                                  <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
-                                  <span className="md:hidden">Running...</span>
-                                  <span className="hidden md:inline">Generating updates...</span>
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
+                                    <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
+                                    <span className="md:hidden">Running...</span>
+                                    <span className="hidden md:inline">Generating updates...</span>
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleStopStep(product.id, isStep3Running ? 3 : 4)}
+                                    className="bg-gray-400 hover:bg-gray-500 text-white p-0 h-6 w-6 md:h-7 md:w-7"
+                                    title={`Stop Step ${isStep3Running ? '3' : '4'}`}
+                                  >
+                                    ■
+                                  </Button>
+                                </div>
                               ) : step4StatusLower !== 'completed' ? (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStartStep3(product.id)}
+                                  disabled={isExecutingStep3}
                                   className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
-                                  {step4StatusLower === 'error' ? (
+                                  {isExecutingStep3 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                  {isExecutingStep3 ? (
+                                    <>
+                                      <span className="md:hidden">Starting...</span>
+                                      <span className="hidden md:inline">Starting...</span>
+                                    </>
+                                  ) : step4StatusLower === 'error' ? (
                                     <>
                                       <span className="md:hidden">Retry</span>
                                       <span className="hidden md:inline">Retry updates</span>
@@ -2979,6 +3378,14 @@ export default function Products() {
                           nextStep = 4;
                         }
                         
+                        const isExecutingNext = (
+                          (nextStep === 0 && isExecutingStep0) ||
+                          (nextStep === 1 && isExecutingStep1) ||
+                          (nextStep === 2 && isExecutingStep2) ||
+                          (nextStep === 3 && isExecutingStep3) ||
+                          (nextStep === 4 && isExecutingStep4)
+                        );
+                        
                         return nextStep !== null ? (
                         <Button
                           variant="outline"
@@ -2990,10 +3397,20 @@ export default function Products() {
                               else if (nextStep === 3) handleStartStep3(product.id);
                               else if (nextStep === 4) handleStartStep4(product.id);
                           }}
+                          disabled={isExecutingNext}
                           className="border-0 bg-blue-50 text-blue-600 hover:bg-blue-100"
                         >
-                          <Play className="w-4 h-4 mr-1" />
-                          Start Next
+                          {isExecutingNext ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              Starting...
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-4 h-4 mr-1" />
+                              Start Next
+                            </>
+                          )}
                         </Button>
                         ) : null;
                       })()}
@@ -3090,9 +3507,17 @@ export default function Products() {
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmDelete}
+              disabled={isDeleting}
               className="bg-red-600 text-white hover:bg-red-700 border-0"
             >
-              Delete Product
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Product'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

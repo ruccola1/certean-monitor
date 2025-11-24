@@ -174,16 +174,15 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setMarkets('');
       setUploadedFiles([]);
       setUploadedImages([]);
+      setDefineComponents(false);
+      setComponents([{ title: '', description: '' }]);
 
-      // Close dialog and notify parent FIRST
+      // Close dialog immediately (instant feedback)
       onOpenChange(false);
       
-      // Notify parent component with a slight delay to ensure product is saved
+      // Notify parent component immediately to refresh list
       if (onProductAdded) {
-        // Wait 500ms to ensure backend has saved the product
-        setTimeout(() => {
-          onProductAdded();
-        }, 500);
+        onProductAdded();
       }
     } catch (err: any) {
       console.error('Error creating product:', err);

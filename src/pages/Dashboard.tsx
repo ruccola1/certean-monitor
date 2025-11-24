@@ -146,30 +146,8 @@ export default function Dashboard() {
       monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0 };
     }
     
-    // Create a lookup map of regulation names to compliance element types from products
-    // This maps the regulation name (from updates) to the compliance element type (from Step 2)
-    const regulationToTypeMap: { [key: string]: string } = {};
-    products.forEach(product => {
-      if (product.step2Results?.compliance_elements) {
-        product.step2Results.compliance_elements.forEach((element: any) => {
-          const elementName = element?.element_name || element?.name || '';
-          const elementType = (element?.element_type || element?.type || 'legislation').toLowerCase();
-          if (elementName) {
-            // Store both exact name and normalized versions for matching
-            regulationToTypeMap[elementName] = elementType;
-            regulationToTypeMap[elementName.toLowerCase()] = elementType;
-            // Also store designation if available
-            const designation = element?.element_designation || element?.designation || '';
-            if (designation) {
-              regulationToTypeMap[designation] = elementType;
-              regulationToTypeMap[designation.toLowerCase()] = elementType;
-            }
-          }
-        });
-      }
-    });
-    
     // Aggregate actual data from compliance updates
+    // The backend now provides element_type (legislation/standard/marking) via compliance_element_id lookup
     complianceUpdates.forEach((update: any) => {
       const updateDate = update?.update_date || update?.date;
       if (!updateDate) return;
@@ -180,26 +158,8 @@ export default function Dashboard() {
         
         // Only include if within our 120-month range
         if (monthlyAggregation[yearMonth]) {
-          // Get type from compliance element (regulation name) instead of update type
-          const regulation = update?.regulation || update?.element_name || '';
-          let elementType = regulationToTypeMap[regulation] || regulationToTypeMap[regulation.toLowerCase()];
-          
-          // Fallback: if no exact match found, try to match by partial name
-          if (!elementType && regulation) {
-            const matchingKey = Object.keys(regulationToTypeMap).find(key => {
-              const regLower = regulation.toLowerCase();
-              const keyLower = key.toLowerCase();
-              return regLower.includes(keyLower) || keyLower.includes(regLower);
-            });
-            if (matchingKey) {
-              elementType = regulationToTypeMap[matchingKey];
-            }
-          }
-          
-          // Final fallback: use update type if available, otherwise default to legislation
-          if (!elementType) {
-            elementType = (update?.type || 'legislation').toLowerCase();
-          }
+          // Use element_type from backend (already resolved via compliance_element_id)
+          const elementType = (update?.element_type || 'legislation').toLowerCase();
           
           // Categorize by compliance element type
           if (elementType.includes('standard') || elementType === 'standard') {
@@ -213,6 +173,17 @@ export default function Dashboard() {
       } catch {
         console.error('Failed to parse date:', updateDate);
       }
+    });
+    
+    // DEBUG: Log final aggregation summary
+    const totalLegislation = Object.values(monthlyAggregation).reduce((sum, month) => sum + month.legislation, 0);
+    const totalStandards = Object.values(monthlyAggregation).reduce((sum, month) => sum + month.standard, 0);
+    const totalMarkings = Object.values(monthlyAggregation).reduce((sum, month) => sum + month.marking, 0);
+    console.log('Chart Data Summary:', {
+      totalLegislation,
+      totalStandards,
+      totalMarkings,
+      totalUpdates: complianceUpdates.length
     });
     
     // Convert to array and sort by date

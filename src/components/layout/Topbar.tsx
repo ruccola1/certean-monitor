@@ -1,5 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react';
-import { Bell, User, Settings, LogOut, CheckCircle, XCircle, X, Menu } from 'lucide-react';
+import { Bell, User, Settings, LogOut, CheckCircle, XCircle, Trash2, Menu } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -151,29 +151,49 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-3 hover:bg-dashboard-view-background cursor-pointer border-b border-gray-200 ${
-                      !notification.read ? 'bg-blue-50' : ''
+                    className={`p-3 border-b border-gray-200 transition-all ${
+                      notification.read 
+                        ? 'bg-gray-50 hover:bg-gray-100' 
+                        : 'bg-blue-50 hover:bg-blue-100'
                     }`}
-                    onClick={() => {
-                      markAsRead(notification.id);
-                      navigate('/products');
-                    }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2 flex-1">
+                      <div 
+                        className="flex items-start gap-2 flex-1 cursor-pointer"
+                        onClick={() => {
+                          if (!notification.read) {
+                            markAsRead(notification.id);
+                          }
+                          navigate('/products');
+                        }}
+                      >
                         {notification.type === 'success' ? (
-                          <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                          <CheckCircle className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+                            notification.read ? 'text-gray-400' : 'text-green-600'
+                          }`} />
+                        ) : notification.type === 'error' ? (
+                          <XCircle className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+                            notification.read ? 'text-gray-400' : 'text-red-600'
+                          }`} />
                         ) : (
-                          <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                          <Bell className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+                            notification.read ? 'text-gray-400' : 'text-blue-600'
+                          }`} />
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                          <p className={`text-sm font-medium ${
+                            notification.read ? 'text-gray-400 line-through' : 'text-[hsl(var(--dashboard-link-color))]'
+                          }`}>
                             {notification.title}
                           </p>
-                          <p className="text-xs text-gray-600 mt-1">
+                          <p className={`text-xs mt-1 ${
+                            notification.read ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
                             {notification.message}
                           </p>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className={`text-xs mt-1 ${
+                            notification.read ? 'text-gray-300' : 'text-gray-400'
+                          }`}>
                             {new Date(notification.timestamp).toLocaleString()}
                           </p>
                         </div>
@@ -183,9 +203,13 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
                           e.stopPropagation();
                           deleteNotification(notification.id);
                         }}
-                        className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                        className={`p-1.5 flex-shrink-0 transition-all hover:bg-red-100 group ${
+                          notification.read ? 'text-gray-300' : 'text-gray-400'
+                        }`}
+                        aria-label="Delete notification"
+                        title="Delete notification"
                       >
-                        <X className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 group-hover:text-red-600" />
                       </button>
                     </div>
                   </div>
