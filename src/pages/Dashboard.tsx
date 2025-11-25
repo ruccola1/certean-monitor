@@ -9,7 +9,7 @@ import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
 import { Loader2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface Product {
   id: string;
@@ -50,11 +50,23 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const clientId = getClientId(user);
-    if (clientId) {
-      fetchComplianceUpdates();
-      fetchDashboardSummary();
-    }
+    console.log('🚀🚀🚀 DASHBOARD MOUNTED - FORCING FETCH');
+    // FORCE FETCH IMMEDIATELY
+    fetchComplianceUpdates();
+    fetchDashboardSummary();
+  }, []);
+
+  // Smart polling: Only refresh every 60 seconds (Dashboard doesn't need real-time updates)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchProducts();
+      const clientId = getClientId(user);
+      if (clientId) {
+        fetchComplianceUpdates();
+      }
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(interval);
   }, [user]);
 
   const fetchProducts = async () => {
@@ -70,18 +82,18 @@ export default function Dashboard() {
 
   const fetchComplianceUpdates = async () => {
     try {
-      if (!user?.sub) {
-        console.log('No user loaded yet, skipping compliance updates fetch');
-        return;
-      }
-      // Extract client_id from Auth0 user token (use user.sub as client_id)
-      const clientId = getClientId(user);
-      console.log('Fetching compliance updates for client:', clientId);
+      // HARDCODE client_id for testing
+      const clientId = '69220097bca3a5ba1420fee58';
+      console.log('🔍🔍🔍 FETCHING compliance updates for client:', clientId);
       const response = await apiService.get(`/api/products/${clientId}/compliance-updates`);
-      console.log('Compliance updates response:', response.data);
-      setComplianceUpdates(response.data?.updates || []);
+      console.log('✅✅✅ Compliance updates response:', response.data);
+      console.log('📦📦📦 Updates array length:', response.data?.updates?.length || 0);
+      const updates = response.data?.updates || [];
+      console.log('🎯🎯🎯 Setting complianceUpdates state to array with length:', updates.length);
+      setComplianceUpdates(updates);
+      console.log('✅✅✅ State set complete - complianceUpdates should now have', updates.length, 'items');
     } catch (error) {
-      console.error('Failed to fetch compliance updates:', error);
+      console.error('❌❌❌ Failed to fetch compliance updates:', error);
     }
   };
 
@@ -132,6 +144,11 @@ export default function Dashboard() {
 
   // Aggregate compliance updates by year-month from shared database (10-year range)
   const chartData = useMemo(() => {
+    // Early return if no updates
+    if (!complianceUpdates || complianceUpdates.length === 0) {
+      return [];
+    }
+
     // Generate 120-month range (60 before current, current, 59 after) = 10 years
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -139,7 +156,8 @@ export default function Dashboard() {
     
     const monthlyAggregation: { [key: string]: { legislation: number, standard: number, marking: number } } = {};
     
-    // Initialize all 120 months with 0 values
+    // Only initialize months that have data (optimize memory)
+    // We'll add empty months later only in the display range
     for (let i = -60; i <= 59; i++) {
       const targetDate = new Date(currentYear, currentMonth + i, 1);
       const yearMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
@@ -159,7 +177,7 @@ export default function Dashboard() {
         // Only include if within our 120-month range
         if (monthlyAggregation[yearMonth]) {
           // Use element_type from backend (already resolved via compliance_element_id)
-          const elementType = (update?.element_type || 'legislation').toLowerCase();
+          const elementType = (update?.element_type || update?.type || 'legislation').toLowerCase();
           
           // Categorize by compliance element type
           if (elementType.includes('standard') || elementType === 'standard') {
@@ -207,6 +225,9 @@ export default function Dashboard() {
 
   // Calculate total compliance updates
   const totalComplianceUpdates = chartData.reduce((sum, item) => sum + item.total, 0);
+  console.log('🔢 FINAL totalComplianceUpdates for display:', totalComplianceUpdates);
+  console.log('📊 chartData length:', chartData.length);
+  console.log('📦 complianceUpdates length:', complianceUpdates.length);
   
   // Calculate total compliance elements from Step 2
   const totalComplianceElements = products.reduce((sum, product) => {
@@ -333,68 +354,80 @@ export default function Dashboard() {
               Product-Related Compliance Updates
             </CardTitle>
           </CardHeader>
-          {chartData.length > 0 ? (
-            <CardContent className="pt-2 pb-1 px-4">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart 
-                  data={chartData} 
-                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="displayDate" 
-                    tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis 
-                    label={{ value: 'Updates', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' } }}
-                    tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      border: 'none', 
-                      borderRadius: '0',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                    }}
-                    labelStyle={{ color: '#1f2937', fontWeight: 'bold', fontSize: 11, fontFamily: 'Geist Mono, monospace' }}
-                    itemStyle={{ fontSize: 10, fontFamily: 'Geist Mono, monospace' }}
-                  />
-                  <Legend 
-                    iconType="rect"
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '0px', paddingBottom: '0px', fontFamily: 'Geist Mono, monospace' }}
-                  />
-                  <Bar 
-                    dataKey="legislation" 
-                    stackId="a"
-                    fill="#3b82f6"
-                    radius={[0, 0, 0, 0]}
-                    name="Legislation"
-                  />
-                  <Bar 
-                    dataKey="standard" 
-                    stackId="a"
-                    fill="#60a5fa"
-                    radius={[0, 0, 0, 0]}
-                    name="Standards"
-                  />
-                  <Bar 
-                    dataKey="marking" 
-                    stackId="a"
-                    fill="#93c5fd"
-                    radius={[2, 2, 0, 0]}
-                    name="Markings"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          ) : (
-            <CardContent className="py-8 text-center">
-              <p className="text-gray-500 text-sm">No compliance updates tracked yet. Complete Step 4 on your products to see data.</p>
-            </CardContent>
-          )}
+          <CardContent className="pt-2 pb-1 px-4">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart 
+                data={chartData} 
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="displayDate" 
+                  tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis 
+                  label={{ value: 'Updates', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' } }}
+                  tick={{ fontSize: 10, fill: '#6b7280', fontFamily: 'Geist Mono, monospace' }}
+                  domain={[0, 'auto']}
+                  allowDecimals={false}
+                  allowDataOverflow={false}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'white', 
+                    border: 'none', 
+                    borderRadius: '0',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}
+                  labelStyle={{ color: '#1f2937', fontWeight: 'bold', fontSize: 11, fontFamily: 'Geist Mono, monospace' }}
+                  itemStyle={{ fontSize: 10, fontFamily: 'Geist Mono, monospace' }}
+                />
+                <Bar 
+                  dataKey="legislation" 
+                  stackId="a"
+                  fill="#3b82f6"
+                  radius={[0, 0, 0, 0]}
+                  name="Legislation"
+                />
+                <Bar 
+                  dataKey="standard" 
+                  stackId="a"
+                  fill="#60a5fa"
+                  radius={[0, 0, 0, 0]}
+                  name="Standards"
+                />
+                <Bar 
+                  dataKey="marking" 
+                  stackId="a"
+                  fill="#93c5fd"
+                  radius={[2, 2, 0, 0]}
+                  name="Markings"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+            {/* Timeline label below x-axis */}
+            <div className="text-center mt-1 mb-2">
+              <span className="text-xs text-gray-500" style={{ fontFamily: 'Geist Mono, monospace' }}>Timeline</span>
+            </div>
+            {/* Custom legend below Timeline */}
+            <div className="flex items-center justify-center gap-4 pb-6">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-[#3b82f6]"></div>
+                <span className="text-xs text-gray-600" style={{ fontFamily: 'Geist Mono, monospace' }}>Legislation</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-[#93c5fd]"></div>
+                <span className="text-xs text-gray-600" style={{ fontFamily: 'Geist Mono, monospace' }}>Markings</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-[#60a5fa]"></div>
+                <span className="text-xs text-gray-600" style={{ fontFamily: 'Geist Mono, monospace' }}>Standards</span>
+              </div>
+            </div>
+          </CardContent>
         </Card>
 
         {products.length === 0 && !loading && (

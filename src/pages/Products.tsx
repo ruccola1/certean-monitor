@@ -280,6 +280,9 @@ export default function Products() {
     step3: string | undefined;
     step4: string | undefined;
   }>>(new Map());
+  
+  // Ref to access latest products without triggering useEffect re-runs
+  const productsRef = useRef<ProductDetails[]>(products);
 
   const fetchProducts = async () => {
     try {
@@ -302,7 +305,9 @@ export default function Products() {
       const response = await productService.getAll(clientId);
       console.log('Products fetched:', response.data?.length || 0);
       
-      setProducts((response.data || []) as unknown as ProductDetails[]);
+      const newProducts = (response.data || []) as unknown as ProductDetails[];
+      setProducts(newProducts);
+      productsRef.current = newProducts; // Update ref
     } catch (error) {
       console.error('Error fetching products:', error);
       // Don't clear products on error - keep showing what we have
@@ -322,6 +327,11 @@ export default function Products() {
     }
   };
 
+  // Keep productsRef in sync with products state
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
   useEffect(() => {
     // Wait for user to be loaded before fetching
     if (!user?.sub) {
@@ -333,15 +343,30 @@ export default function Products() {
     fetchProducts();
     fetchComplianceAreas();
 
-    // Poll for updates every 5 seconds
+    // Smart polling: Only poll every 30 seconds, and only if there are running steps
     const interval = setInterval(() => {
-      fetchProducts();
-    }, 5000);
+      // Use ref to access latest products without causing re-renders
+      const currentProducts = productsRef.current;
+      const hasRunningSteps = currentProducts.some(p => 
+        p.step0Status === 'running' || 
+        p.step1Status === 'running' || 
+        p.step2Status === 'running' || 
+        p.step3Status === 'running' || 
+        p.step4Status === 'running'
+      );
+      
+      if (hasRunningSteps || currentProducts.length === 0) {
+        console.log('Polling: Running steps detected, fetching products...');
+        fetchProducts();
+      } else {
+        console.log('Polling: All steps idle, skipping fetch');
+      }
+    }, 30000); // Poll every 30 seconds
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [user?.sub]); // Re-run when user loads
+  }, [user?.sub]); // Only re-run when user changes, NOT when products change
 
   const fetchComplianceAreas = async () => {
     try {
@@ -901,6 +926,11 @@ export default function Products() {
   const handleStartStep0 = async (productId: string) => {
     const stepKey = `${productId}-step0`;
     
+    // GUARD: Prevent multiple clicks
+    if (executingSteps.has(stepKey)) {
+      return;
+    }
+    
     try {
       // 1. Add to executing set for loading state
       setExecutingSteps(prev => new Set(prev).add(stepKey));
@@ -973,6 +1003,11 @@ export default function Products() {
   const handleStartStep1 = async (productId: string) => {
     const stepKey = `${productId}-step1`;
     
+    // GUARD: Prevent multiple clicks
+    if (executingSteps.has(stepKey)) {
+      return;
+    }
+    
     try {
       // 1. Add to executing set for loading state
       setExecutingSteps(prev => new Set(prev).add(stepKey));
@@ -998,7 +1033,7 @@ export default function Products() {
       // 4. Backend sync in background (no await blocking)
       const clientId = getClientId(user);
       
-      apiService.getInstance().post(`/api/products/${productId}/execute-step1?client_id=${clientId}`)
+      productService.executeStep1(productId, clientId)
         .then(response => {
           console.log('Step 1 started for product:', productId, response.data);
           fetchProducts();
@@ -1014,7 +1049,7 @@ export default function Products() {
           
           addNotification({
             title: 'Regulation Search Failed',
-            message: 'Failed to start regulation search',
+            message: error?.response?.data?.detail || 'Failed to start regulation search',
             type: 'error',
             productId: productId,
             productName: product?.name || 'Unknown',
@@ -1041,6 +1076,11 @@ export default function Products() {
 
   const handleStartStep2 = async (productId: string) => {
     const stepKey = `${productId}-step2`;
+    
+    // GUARD: Prevent multiple clicks
+    if (executingSteps.has(stepKey)) {
+      return;
+    }
     
     try {
       // 1. Add to executing set for loading state
@@ -1111,6 +1151,11 @@ export default function Products() {
   const handleStartStep3 = async (productId: string) => {
     const stepKey = `${productId}-step3`;
     
+    // GUARD: Prevent multiple clicks
+    if (executingSteps.has(stepKey)) {
+      return;
+    }
+    
     try {
       // 1. Add to executing set for loading state
       setExecutingSteps(prev => new Set(prev).add(stepKey));
@@ -1136,7 +1181,7 @@ export default function Products() {
       // 4. Backend sync in background (no await blocking)
       const clientId = getClientId(user);
       
-      apiService.getInstance().post(`/api/products/${productId}/execute-step3?client_id=${clientId}`)
+      productService.executeStep3(productId, clientId)
         .then(response => {
           console.log('Step 3 started for product:', productId, response.data);
           fetchProducts();
@@ -1152,7 +1197,7 @@ export default function Products() {
           
           addNotification({
             title: 'Gap Analysis Failed',
-            message: 'Failed to start gap analysis',
+            message: error?.response?.data?.detail || 'Failed to start gap analysis',
             type: 'error',
             productId: productId,
             productName: product?.name || 'Unknown',
@@ -1180,6 +1225,11 @@ export default function Products() {
   const handleStartStep4 = async (productId: string) => {
     const stepKey = `${productId}-step4`;
     
+    // GUARD: Prevent multiple clicks
+    if (executingSteps.has(stepKey)) {
+      return;
+    }
+    
     try {
       // 1. Add to executing set for loading state
       setExecutingSteps(prev => new Set(prev).add(stepKey));
@@ -1205,7 +1255,7 @@ export default function Products() {
       // 4. Backend sync in background (no await blocking)
       const clientId = getClientId(user);
       
-      apiService.getInstance().post(`/api/products/${productId}/execute-step4?client_id=${clientId}`)
+      productService.executeStep4(productId, clientId)
         .then(response => {
           console.log('Step 4 started for product:', productId, response.data);
           fetchProducts();
@@ -1221,7 +1271,7 @@ export default function Products() {
           
           addNotification({
             title: 'Report Generation Failed',
-            message: 'Failed to generate compliance report',
+            message: error?.response?.data?.detail || 'Failed to generate compliance report',
             type: 'error',
             productId: productId,
             productName: product?.name || 'Unknown',
@@ -1507,7 +1557,7 @@ export default function Products() {
                                       }`}>
                                         {product.step0Results.quality_score}%
                                       </p>
-                                      <span className="text-[10px] text-gray-400 hidden md:inline">quality score</span>
+                                      <span className="text-[10px] text-gray-400 hidden md:inline">Provided</span>
                                     </>
                                   ) : (
                                     <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))] truncate">
@@ -1516,7 +1566,13 @@ export default function Products() {
                                   )}
                                 </div>
                                 <p className="hidden md:block text-xs text-gray-500 mt-1 truncate">
-                                  {product.step0Results?.quality_reasoning || "Review and edit before continuing."}
+                                  {product.step0Results?.is_sufficient !== undefined 
+                                    ? (product.step0Results.is_sufficient ? "Sufficient" : "Insufficient")
+                                    : (product.step0Results?.quality_score 
+                                      ? (product.step0Results.quality_score >= 70 ? "Sufficient" : "Insufficient")
+                                      : "Pending"
+                                    )
+                                  }
                                 </p>
                               </div>
                               <div className="scale-75 origin-top-left md:scale-100 shrink-0">
