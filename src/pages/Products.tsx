@@ -367,7 +367,7 @@ export default function Products() {
   const [editingStep0, setEditingStep0] = useState<{ productId: string } | null>(null);
   const [editingStep2, setEditingStep2] = useState<{ productId: string } | null>(null);
   const [savingStep0, setSavingStep0] = useState(false);
-  const [savingStep2, setSavingStep2] = useState(false);
+  // savingStep2 removed - not used
   
   // Step 0 edit state (local copies for editing)
   const [step0EditData, setStep0EditData] = useState<any>(null);
@@ -2476,7 +2476,7 @@ export default function Products() {
               const isExecutingStep1 = executingSteps.has(`${product.id}-step1`);
               const isExecutingStep2 = executingSteps.has(`${product.id}-step2`);
               const isExecutingStep3 = executingSteps.has(`${product.id}-step3`);
-              const isExecutingStep4 = executingSteps.has(`${product.id}-step4`);
+              // isExecutingStep4 removed - not used in simplified button logic
               
               const complianceElementsCount =
                 product.step2Results?.elements_count ??
