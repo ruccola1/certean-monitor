@@ -2659,7 +2659,7 @@ export default function Products() {
                         <div>
                           <span className="text-gray-500">Type:</span>
                           <span className="ml-2 text-[hsl(var(--dashboard-link-color))] font-medium">
-                            {product.type}
+                            {product.type ? product.type.charAt(0).toUpperCase() + product.type.slice(1) : ''}
                           </span>
                         </div>
                         <div>

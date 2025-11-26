@@ -107,7 +107,7 @@ export const ProductCard = memo(function ProductCard({
             <h3 className="text-base md:text-lg font-bold text-[hsl(var(--dashboard-link-color))] mb-1">{product.name}</h3>
             <p className="text-xs md:text-sm text-gray-500 mb-2">{product.description}</p>
             <div className="flex flex-wrap gap-2 text-xs md:text-sm text-gray-500">
-              <span>Type: {product.type}</span>
+              <span>Type: {product.type ? product.type.charAt(0).toUpperCase() + product.type.slice(1) : ''}</span>
               {product.markets && product.markets.length > 0 && (
                 <span>Markets: {product.markets.join(', ')}</span>
               )}
