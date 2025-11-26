@@ -88,7 +88,7 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between bg-background px-4 md:px-6 border-b border-gray-300">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between bg-background px-4 md:px-6 border-b border-gray-200 shadow-subtle">
       <div className="flex items-center gap-2">
         {/* Hamburger Menu - Mobile Only */}
         <button

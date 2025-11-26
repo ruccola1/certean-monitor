@@ -339,7 +339,7 @@ export function ProductFilterbar({ activeFilters, onToggleFilter, onClearFilters
   };
 
   return (
-    <div className="w-full bg-[hsl(var(--dashboard-link-color))] px-4 py-0 h-12 flex items-center">
+    <div className="w-full bg-[hsl(var(--dashboard-link-color))] px-4 py-0 h-12 flex items-center shadow-subtle">
       <div className="flex items-center h-full w-full">
         {filters.map((filter, index) => {
           const baseFilterConfig = typedFilterDataJson[filter.dataKey] as FilterDataJson;

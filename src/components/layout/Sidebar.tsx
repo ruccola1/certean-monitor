@@ -45,7 +45,7 @@ export default function Sidebar({ onMobileClose }: SidebarProps) {
 
   return (
     <TooltipProvider>
-      <aside className="h-screen w-16 bg-sidebar-gradient flex flex-col items-center py-4">
+      <aside className="h-screen w-16 bg-sidebar-gradient flex flex-col items-center py-4 shadow-subtle">
         {/* Logo */}
         <Link 
           to="/" 

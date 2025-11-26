@@ -506,7 +506,7 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-          <Card className="bg-white border-0">
+          <Card className="bg-white border-0 shadow-subtle">
             <CardHeader>
               <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Products</CardTitle>
               <CardDescription className="text-sm text-gray-500">Total products monitored</CardDescription>
@@ -561,7 +561,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-0">
+          <Card className="bg-white border-0 shadow-subtle">
             <CardHeader>
               <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Compliance Elements</CardTitle>
               <CardDescription className="text-sm text-gray-500">Tracked regulations & standards</CardDescription>
@@ -602,7 +602,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-0">
+          <Card className="bg-white border-0 shadow-subtle">
             <CardHeader>
               <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Upcoming Updates</CardTitle>
               <CardDescription className="text-sm text-gray-500">Future compliance changes</CardDescription>
@@ -635,7 +635,7 @@ export default function Dashboard() {
         </div>
 
         {/* Compliance Updates Timeline Chart */}
-        <Card className="bg-white border-0">
+        <Card className="bg-white border-0 shadow-subtle">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
               Product-Related Compliance Updates
@@ -718,7 +718,7 @@ export default function Dashboard() {
         </Card>
 
         {products.length === 0 && !loading && (
-          <Card className="bg-white border-0">
+          <Card className="bg-white border-0 shadow-subtle">
             <CardHeader>
               <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Getting Started</CardTitle>
               <CardDescription className="text-sm text-gray-500">Add your first product to begin compliance monitoring</CardDescription>
@@ -739,7 +739,7 @@ export default function Dashboard() {
         )}
 
         {products.length > 0 && (
-          <Card className="bg-white border-0">
+          <Card className="bg-white border-0 shadow-subtle">
             <CardHeader>
               <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Recent Products</CardTitle>
               <CardDescription className="text-sm text-gray-500">Your latest products and their status</CardDescription>
@@ -778,7 +778,7 @@ export default function Dashboard() {
           </Card>
         )}
 
-        <Card className="bg-white border-0">
+        <Card className="bg-white border-0 shadow-subtle">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
               System Status

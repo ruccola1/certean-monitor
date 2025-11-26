@@ -2508,7 +2508,7 @@ export default function Products() {
             <span className="ml-3 text-gray-500">Loading products...</span>
           </div>
         ) : products.length === 0 ? (
-          <Card className="bg-white border-0">
+          <Card className="bg-white border-0 shadow-subtle">
             <CardContent className="p-12 text-center">
               <p className="text-gray-500 mb-4">No products yet</p>
               <Button
@@ -2521,7 +2521,7 @@ export default function Products() {
             </CardContent>
           </Card>
         ) : filteredProducts.length === 0 ? (
-          <Card className="bg-white border-0">
+          <Card className="bg-white border-0 shadow-subtle">
             <CardContent className="p-12 text-center">
               <p className="text-gray-500 mb-4">No products match the selected filters</p>
               <Button
@@ -2590,7 +2590,7 @@ export default function Products() {
               return (
               <Card 
                 key={product.id} 
-                className={`bg-white border-0 transition-all duration-300 ease-out ${
+                className={`bg-white border-0 shadow-subtle transition-all duration-300 ease-out ${
                   isBeingDeleted 
                     ? 'opacity-0 scale-95 -translate-x-4 overflow-hidden' 
                     : isNewlyAdded
