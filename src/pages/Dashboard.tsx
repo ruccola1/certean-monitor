@@ -743,14 +743,14 @@ export default function Dashboard() {
                 <Tooltip content={<CustomChartTooltip />} />
                 <ReferenceLine 
                   x={currentMonthLabel} 
-                  stroke="#ef4444" 
-                  strokeWidth={2}
+                  stroke="#6b7280" 
+                  strokeWidth={1.5}
                   strokeDasharray="4 2"
                   label={{ 
-                    value: 'Now', 
+                    value: currentMonthLabel, 
                     position: 'top', 
-                    fill: '#ef4444', 
-                    fontSize: 10,
+                    fill: '#374151', 
+                    fontSize: 9,
                     fontFamily: 'Geist Mono, monospace',
                     fontWeight: 'bold'
                   }}
