@@ -432,48 +432,45 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                  Upload Product Images (optional)
+                  Product Images (optional)
                 </Label>
-                <div className="border-0 bg-dashboard-view-background p-4 h-full">
-                  <input
-                    type="file"
-                    id="image-file-input"
-                    multiple
-                    accept="image/png,image/jpeg,image/jpg"
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      setUploadedImages(files);
-                    }}
-                    className="text-sm text-gray-500 w-full"
-                  />
-                  <p className="text-xs text-gray-500 mt-2">
-                    PNG, JPEG, JPG images for AI vision analysis
-                  </p>
-                  {uploadedImages.length > 0 && (
-                    <div className="mt-2 text-xs text-[hsl(var(--dashboard-link-color))]">
-                      {uploadedImages.length} image(s) selected
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                  Take Photo (optional)
-                </Label>
-                <div className="border-0 bg-dashboard-view-background p-4 h-full flex flex-col items-center justify-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled
-                    className="border-0 bg-white text-gray-400 hover:bg-white cursor-not-allowed"
-                  >
-                    <Camera className="w-4 h-4 mr-2" />
-                    Open Camera
-                  </Button>
-                  <p className="text-xs text-gray-400 mt-2 text-center">
-                    Coming soon - capture product photos directly
-                  </p>
+                <div className="border-0 bg-dashboard-view-background p-4 h-full space-y-4">
+                  <div>
+                    <input
+                      type="file"
+                      id="image-file-input"
+                      multiple
+                      accept="image/png,image/jpeg,image/jpg"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        setUploadedImages(files);
+                      }}
+                      className="text-sm text-gray-500 w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      PNG, JPEG, JPG images for AI vision analysis
+                    </p>
+                    {uploadedImages.length > 0 && (
+                      <div className="mt-2 text-xs text-[hsl(var(--dashboard-link-color))]">
+                        {uploadedImages.length} image(s) selected
+                      </div>
+                    )}
+                  </div>
+                  <div className="pt-3 border-t border-gray-200">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled
+                      size="sm"
+                      className="border-0 bg-white text-gray-400 hover:bg-white cursor-not-allowed"
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Take Photo
+                    </Button>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Coming soon
+                    </p>
+                  </div>
                 </div>
               </div>
 
