@@ -442,7 +442,7 @@ export default function Dashboard() {
   const currentMonthFullLabel = useMemo(() => {
     const now = new Date();
     const month = now.toLocaleString('default', { month: 'long' });
-    return `${month.toUpperCase()} ${now.getFullYear()}`;
+    return `${month} ${now.getFullYear()}`;
   }, []);
 
   // Custom tooltip for the chart
@@ -750,13 +750,13 @@ export default function Dashboard() {
                 <Tooltip content={<CustomChartTooltip />} />
                 <ReferenceLine 
                   x={currentMonthLabel} 
-                  stroke="#6b7280" 
-                  strokeWidth={1.5}
+                  stroke="#9ca3af" 
+                  strokeWidth={1}
                   strokeDasharray="4 2"
                   label={{ 
                     value: currentMonthFullLabel, 
                     position: 'top', 
-                    fill: '#374151', 
+                    fill: '#6b7280', 
                     fontSize: 9,
                     fontFamily: 'Geist Mono, monospace',
                     fontWeight: 'bold'
