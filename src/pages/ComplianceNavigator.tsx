@@ -11,6 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { ProductFilterbar } from '@/components/products/ProductFilterbar';
 
 interface ComplianceUpdate {
   id: string;
@@ -73,8 +74,8 @@ export default function ComplianceNavigator() {
       });
       setProductsMap(pMap);
 
-      // Fetch compliance updates
-      const updatesResponse = await apiService.get(`/compliance/updates?client_id=${clientId}`);
+      // Fetch compliance updates - use the correct endpoint from products routes
+      const updatesResponse = await apiService.get(`/api/products/${clientId}/compliance-updates`);
       const updates: ComplianceUpdate[] = updatesResponse.data?.updates || [];
       setComplianceUpdates(updates);
     } catch (error) {
@@ -414,6 +415,14 @@ export default function ComplianceNavigator() {
 
   return (
     <div className="flex flex-col h-full bg-dashboard-view-background">
+      {/* Filterbar */}
+      <ProductFilterbar 
+        activeFilters={new Set()} 
+        onToggleFilter={() => {}} 
+        onClearFilters={() => {}}
+        dynamicProducts={[]}
+      />
+
       {/* Full width timeline container */}
       <div className="flex-1 relative overflow-hidden">
         {loading ? (
