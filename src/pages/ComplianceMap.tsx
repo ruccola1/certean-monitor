@@ -398,7 +398,7 @@ export default function ComplianceMap() {
             )}
 
             {/* Zoom Controls */}
-            <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-40">
+            <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-[100]">
               <Button
                 variant="outline"
                 size="icon"
@@ -426,7 +426,7 @@ export default function ComplianceMap() {
             </div>
 
             {/* Legend */}
-            <div className="absolute bottom-6 left-6 bg-white p-3 shadow-subtle border-0 z-40">
+            <div className="absolute bottom-6 left-6 bg-white p-3 shadow-subtle border-0 z-[100]">
               <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">Legend</h5>
               <div className="space-y-1.5 text-[11px]">
                 <div className="flex items-center gap-2">
@@ -449,7 +449,7 @@ export default function ComplianceMap() {
             </div>
 
             {/* Summary Stats Card */}
-            <div className="absolute top-6 right-6 z-40">
+            <div className="absolute top-6 right-6 z-[100]">
               <Card className="bg-white border-0 shadow-subtle">
                 <CardHeader className="py-3 px-4">
                   <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Global Overview</CardTitle>
@@ -478,7 +478,7 @@ export default function ComplianceMap() {
             </div>
 
             {/* Info Tooltip */}
-            <div className="absolute top-6 left-6 z-40">
+            <div className="absolute top-6 left-6 z-[100]">
               <div className="bg-white p-3 shadow-subtle border-0 max-w-xs">
                 <div className="flex items-start gap-2">
                   <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
