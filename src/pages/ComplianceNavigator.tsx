@@ -445,7 +445,7 @@ export default function ComplianceNavigator() {
   const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
   return (
-    <div className="flex flex-col h-full bg-dashboard-view-background">
+    <div className="flex flex-col min-h-screen bg-dashboard-view-background">
       {/* Filterbar */}
       <ProductFilterbar 
         activeFilters={new Set()} 
@@ -455,20 +455,20 @@ export default function ComplianceNavigator() {
       />
 
       {/* Full width timeline container */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden" style={{ minHeight: 'calc(100vh - 48px)' }}>
         {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex items-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
-              <span className="text-lg text-gray-500">Loading compliance timeline...</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-dashboard-view-background">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-10 h-10 animate-spin text-[hsl(var(--dashboard-link-color))]" />
+              <span className="text-sm text-gray-500">Loading compliance timeline...</span>
             </div>
           </div>
         ) : complianceUpdates.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-[hsl(var(--dashboard-link-color))] mb-2">No Compliance Updates</h3>
-              <p className="text-sm text-gray-500 max-w-md">
+          <div className="absolute inset-0 flex items-center justify-center bg-dashboard-view-background">
+            <div className="text-center px-4">
+              <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-[hsl(var(--dashboard-link-color))] mb-2">No Compliance Updates</h3>
+              <p className="text-sm text-gray-500 max-w-md mx-auto">
                 Run Step 4 (Identify Updates) on your products to discover compliance updates.
                 <br />
                 Updates will appear here once identified.
