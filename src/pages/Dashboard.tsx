@@ -365,7 +365,12 @@ export default function Dashboard() {
     const maxTime = maxDate.getTime();
     
     // Aggregate only months that have data (lazy initialization)
-    const monthlyAggregation: { [key: string]: { legislation: number, standard: number, marking: number } } = {};
+    const monthlyAggregation: { [key: string]: { 
+      legislation: number, 
+      standard: number, 
+      marking: number,
+      titles: string[] 
+    } } = {};
     
     // Single pass through updates
     for (let i = 0; i < complianceUpdates.length; i++) {
@@ -383,8 +388,12 @@ export default function Dashboard() {
       
       // Lazy initialize month
       if (!monthlyAggregation[yearMonth]) {
-        monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0 };
+        monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0, titles: [] };
       }
+      
+      // Add title to the list
+      const title = update?.title || update?.regulation || update?.name || 'Untitled Update';
+      monthlyAggregation[yearMonth].titles.push(title);
       
       // Fast type categorization
       const elementType = (update?.element_type || update?.type || '').toLowerCase();
@@ -398,12 +407,12 @@ export default function Dashboard() {
     }
     
     // Generate full range with empty months (only 120 months = 10 years)
-    const result: Array<{date: string, displayDate: string, legislation: number, standard: number, marking: number, total: number}> = [];
+    const result: Array<{date: string, displayDate: string, legislation: number, standard: number, marking: number, total: number, titles: string[]}> = [];
     
     for (let i = -60; i <= 59; i++) {
       const targetDate = new Date(currentYear, currentMonth + i, 1);
       const yearMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
-      const data = monthlyAggregation[yearMonth] || { legislation: 0, standard: 0, marking: 0 };
+      const data = monthlyAggregation[yearMonth] || { legislation: 0, standard: 0, marking: 0, titles: [] };
       
       result.push({
         date: yearMonth,
@@ -411,12 +420,66 @@ export default function Dashboard() {
         legislation: data.legislation,
         standard: data.standard,
         marking: data.marking,
-        total: data.legislation + data.standard + data.marking
+        total: data.legislation + data.standard + data.marking,
+        titles: data.titles
       });
     }
     
     return result;
   }, [complianceUpdates]);
+
+  // Custom tooltip for the chart
+  const CustomChartTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
+    
+    const data = payload[0]?.payload;
+    if (!data || data.total === 0) return null;
+    
+    return (
+      <div className="bg-white p-3 shadow-lg border-0 max-w-xs">
+        <p className="font-bold text-sm text-gray-800 mb-2" style={{ fontFamily: 'Geist Mono, monospace' }}>
+          {label}
+        </p>
+        <div className="space-y-1 mb-2">
+          {data.legislation > 0 && (
+            <div className="flex items-center gap-2 text-xs">
+              <div className="w-2 h-2 bg-[#3b82f6]"></div>
+              <span>Legislation: {data.legislation}</span>
+            </div>
+          )}
+          {data.marking > 0 && (
+            <div className="flex items-center gap-2 text-xs">
+              <div className="w-2 h-2 bg-[#93c5fd]"></div>
+              <span>Markings: {data.marking}</span>
+            </div>
+          )}
+          {data.standard > 0 && (
+            <div className="flex items-center gap-2 text-xs">
+              <div className="w-2 h-2 bg-[#60a5fa]"></div>
+              <span>Standards: {data.standard}</span>
+            </div>
+          )}
+        </div>
+        {data.titles && data.titles.length > 0 && (
+          <div className="border-t border-gray-100 pt-2 mt-2">
+            <p className="text-[10px] text-gray-500 mb-1 uppercase font-semibold">Updates:</p>
+            <ul className="space-y-0.5">
+              {data.titles.slice(0, 5).map((title: string, idx: number) => (
+                <li key={idx} className="text-[10px] text-gray-600 truncate" title={title}>
+                  {title.length > 40 ? title.substring(0, 40) + '...' : title}
+                </li>
+              ))}
+              {data.titles.length > 5 && (
+                <li className="text-[10px] text-gray-400 italic">
+                  +{data.titles.length - 5} more...
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Calculate FUTURE and PAST compliance updates - OPTIMIZED
   const { futureComplianceUpdates, pastComplianceUpdates } = useMemo(() => {
@@ -662,16 +725,7 @@ export default function Dashboard() {
                   allowDecimals={false}
                   allowDataOverflow={false}
                 />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    border: 'none', 
-                    borderRadius: '0',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                  }}
-                  labelStyle={{ color: '#1f2937', fontWeight: 'bold', fontSize: 11, fontFamily: 'Geist Mono, monospace' }}
-                  itemStyle={{ fontSize: 10, fontFamily: 'Geist Mono, monospace' }}
-                />
+                <Tooltip content={<CustomChartTooltip />} />
                 <Bar 
                   dataKey="legislation" 
                   stackId="a"
