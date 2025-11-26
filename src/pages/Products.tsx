@@ -2665,7 +2665,7 @@ export default function Products() {
                           </span>
                         </div>
                         {product.manufactured_in && product.manufactured_in.length > 0 && (
-                          <div>
+                        <div>
                             <span className="text-gray-500">Manufactured in:</span>
                             <span className="ml-2 text-[hsl(var(--dashboard-link-color))] font-medium">
                               {product.manufactured_in.join(', ')}
@@ -2772,13 +2772,13 @@ export default function Products() {
                                 if (step0StatusLower !== 'completed') return null;
                                 if (step1StatusLower !== 'completed' && step1StatusLower !== 'running') {
                                   return (
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleStartStep1(product.id)}
-                                      disabled={isExecutingStep1}
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStartStep1(product.id)}
+                                  disabled={isExecutingStep1}
                                       className="bg-green-600 hover:bg-green-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
-                                    >
-                                      {isExecutingStep1 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                >
+                                  {isExecutingStep1 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
                                       <Play className="w-3 h-3 mr-1" />
                                       <span>Step 1</span>
                                     </Button>
@@ -4844,87 +4844,87 @@ export default function Products() {
                                             ) : (
                                               <ChevronRight className="w-4 h-4 text-gray-500" />
                                             )}
-                                            <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
-                                            <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
-                                              {title}
-                                            </h6>
+                                        <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
+                                        <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+                                          {title}
+                                      </h6>
                                             <span className="text-xs text-gray-400">({elements.length})</span>
-                                          </div>
+                                      </div>
                                         </button>
                                         
                                         {/* Collapsible Content */}
                                         {isExpanded && elements.length > 0 && (
                                           <div className="border-l-2 border-slate-200 ml-2">
                                             {elements.map((element: any, idx: number) => {
-                                              const name = element?.element_name || element?.name || 'Unnamed';
-                                              const designation = element?.element_designation || element?.designation || '';
-                                              const description = element?.element_description_long || element?.description || '';
-                                              const countries = element?.element_countries || element?.countries || [];
+                                          const name = element?.element_name || element?.name || 'Unnamed';
+                                          const designation = element?.element_designation || element?.designation || '';
+                                          const description = element?.element_description_long || element?.description || '';
+                                          const countries = element?.element_countries || element?.countries || [];
                                               
                                               // Additional metadata
                                               const inForce = element?.in_force ?? element?.is_active ?? true;
                                               const effectiveDate = element?.effective_date || element?.entry_into_force || element?.date_in_force || '';
                                               const deadline = element?.deadline || element?.compliance_deadline || element?.transition_deadline || '';
                                               const lastUpdated = element?.last_updated || element?.revision_date || '';
-                                              
-                                              // Look up source URL from Step 3 mapping first
-                                              let elementUrl = element?.source_official || element?.element_url || element?.url;
-                                              if (!elementUrl && product.step3Payload?.element_mappings) {
-                                                const mapping = product.step3Payload.element_mappings.find(
+                                          
+                                          // Look up source URL from Step 3 mapping first
+                                          let elementUrl = element?.source_official || element?.element_url || element?.url;
+                                          if (!elementUrl && product.step3Payload?.element_mappings) {
+                                            const mapping = product.step3Payload.element_mappings.find(
                                                   (m: any) => m.step2_element_name === name || m.step2_designation === designation
-                                                );
-                                                if (mapping) {
-                                                  elementUrl = mapping.source_official;
-                                                }
-                                              }
-                                              
-                                              // Find original index in full list for removal
-                                              const fullList = editingStep2?.productId === product.id 
-                                                ? step2EditData?.compliance_elements || []
-                                                : filteredElements;
-                                              const originalIndex = fullList.findIndex((el: any) => {
-                                                const elName = el?.element_name || el?.name;
-                                                const elDes = el?.element_designation || el?.designation;
-                                                return (elName === name && elDes === designation) || 
-                                                       (elName === name && !elDes && !designation) || 
-                                                       (elDes === designation && elDes);
-                                              });
-                                              
-                                              return (
+                                            );
+                                            if (mapping) {
+                                              elementUrl = mapping.source_official;
+                                            }
+                                          }
+                                          
+                                          // Find original index in full list for removal
+                                          const fullList = editingStep2?.productId === product.id 
+                                            ? step2EditData?.compliance_elements || []
+                                            : filteredElements;
+                                          const originalIndex = fullList.findIndex((el: any) => {
+                                            const elName = el?.element_name || el?.name;
+                                            const elDes = el?.element_designation || el?.designation;
+                                            return (elName === name && elDes === designation) || 
+                                                   (elName === name && !elDes && !designation) || 
+                                                   (elDes === designation && elDes);
+                                          });
+                                          
+                                          return (
                                                 <div key={`${category}-${originalIndex}-${idx}`} className="relative bg-white p-3 ml-4 mt-1 border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                                  {/* X button for removal in edit mode */}
-                                                  {editingStep2?.productId === product.id && originalIndex !== -1 && (
-                                                    <button
-                                                      onClick={() => handleRemoveStep2Element(originalIndex)}
-                                                      className="absolute top-2 right-2 text-red-500 hover:text-red-700 z-10"
-                                                      title="Remove element"
-                                                    >
-                                                      <XCircle className="w-4 h-4" />
-                                                    </button>
-                                                  )}
-                                                  
+                                              {/* X button for removal in edit mode */}
+                                              {editingStep2?.productId === product.id && originalIndex !== -1 && (
+                                                <button
+                                                  onClick={() => handleRemoveStep2Element(originalIndex)}
+                                                  className="absolute top-2 right-2 text-red-500 hover:text-red-700 z-10"
+                                                  title="Remove element"
+                                                >
+                                                  <XCircle className="w-4 h-4" />
+                                                </button>
+                                              )}
+                                              
                                                   {/* Link icon - only show if URL exists and not in edit mode */}
-                                                  {!editingStep2 && elementUrl && (
-                                                    <div className="absolute top-2 right-2">
+                                              {!editingStep2 && elementUrl && (
+                                                <div className="absolute top-2 right-2">
                                                       <a 
                                                         href={elementUrl} 
                                                         target="_blank" 
                                                         rel="noopener noreferrer"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="text-blue-500 hover:text-blue-600"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="text-blue-500 hover:text-blue-600"
                                                         title="View compliance element details"
                                                       >
-                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                    <ExternalLink className="w-3.5 h-3.5" />
                                                       </a>
-                                                    </div>
-                                                  )}
-                                                  
+                                                  </div>
+                                              )}
+                                              
                                                   <div className="pr-8">
                                                     {/* Title row with in-force badge */}
                                                     <div className="flex items-start gap-2 mb-1">
                                                       <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] flex-1">
-                                                        {name}
-                                                      </h6>
+                                                    {name}
+                                                  </h6>
                                                       <Badge className={`text-[9px] border-0 px-1.5 py-0 ${
                                                         inForce ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                                                       }`}>
@@ -4932,17 +4932,17 @@ export default function Products() {
                                                       </Badge>
                                                     </div>
                                                     
-                                                    {designation && (
+                                                  {designation && (
                                                       <p className="text-xs text-gray-500 mb-1.5 font-mono">
-                                                        {designation}
-                                                      </p>
-                                                    )}
+                                                      {designation}
+                                                    </p>
+                                                  )}
                                                     
-                                                    {description && (
-                                                      <p className="text-xs text-gray-600 mb-2">
+                                                  {description && (
+                                                    <p className="text-xs text-gray-600 mb-2">
                                                         {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
-                                                      </p>
-                                                    )}
+                                                    </p>
+                                                  )}
                                                     
                                                     {/* Metadata row: dates, deadlines */}
                                                     <div className="flex flex-wrap gap-3 text-[10px] text-gray-500 mb-2">
@@ -4967,15 +4967,15 @@ export default function Products() {
                                                     </div>
                                                     
                                                     {/* Countries */}
-                                                    {Array.isArray(countries) && countries.length > 0 && (
+                                                  {Array.isArray(countries) && countries.length > 0 && (
                                                       <div className="flex flex-wrap gap-1 mb-2">
-                                                        {countries.map((country: any, cidx: number) => (
+                                                      {countries.map((country: any, cidx: number) => (
                                                           <Badge key={cidx} className="bg-blue-50 text-blue-700 text-[10px] border-0 px-1.5 py-0">
-                                                            {String(country)}
-                                                          </Badge>
-                                                        ))}
-                                                      </div>
-                                                    )}
+                                                          {String(country)}
+                                                        </Badge>
+                                                      ))}
+                                                    </div>
+                                                  )}
                                                     
                                                     {/* Related Components */}
                                                     {Array.isArray(element?.related_components) && element.related_components.length > 0 && (
@@ -4987,14 +4987,14 @@ export default function Products() {
                                                               {comp}
                                                             </Badge>
                                                           ))}
-                                                        </div>
+                                                </div>
                                                       </div>
                                                     )}
-                                                  </div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
                                         )}
                                         
                                         {isExpanded && elements.length === 0 && (
@@ -5002,8 +5002,8 @@ export default function Products() {
                                             No {title.toLowerCase()} found
                                           </div>
                                         )}
-                                      </div>
-                                    );
+                                    </div>
+                                  );
                                   };
 
                                   return (
@@ -5133,10 +5133,10 @@ export default function Products() {
                                         {/* Element header */}
                                         <div className="flex items-center justify-between mb-2">
                                           <div className="flex items-center gap-2">
-                                            <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
+                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
                                             <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
                                               {elementName}
-                                            </h6>
+                                        </h6>
                                             <Badge className={`text-[9px] border-0 px-1.5 py-0 ${
                                               elementType.includes('legislation') || elementType.includes('regulation') ? 'bg-blue-50 text-blue-700' :
                                               elementType.includes('standard') ? 'bg-purple-50 text-purple-700' :
@@ -5145,7 +5145,7 @@ export default function Products() {
                                               {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
                                                elementType.includes('standard') ? 'Standard' : 'Marking'}
                                             </Badge>
-                                          </div>
+                                        </div>
                                           <span className="text-[10px] text-gray-400">{sortedUpdates.length} update{sortedUpdates.length !== 1 ? 's' : ''}</span>
                                         </div>
                                         
@@ -5162,17 +5162,17 @@ export default function Products() {
                                           }}
                                         >
                                           {sortedUpdates.map((update: any, idx: number) => {
-                                            const title = update?.title || '';
-                                            const updateDate = update?.update_date || update?.date || '';
-                                            const description = update?.description || update?.update || '';
-                                            const impact = update?.impact || '';
-                                            const sourceUrl = update?.source || update?.source_url || update?.url;
-                                            
-                                            // Check if this update is new/changed
-                                            const updateKey = getUpdateKey(update);
-                                            const productNewIds = newUpdateIds.get(product.id);
-                                            const isNewUpdate = productNewIds?.has(updateKey) || false;
-                                            
+                                                  const title = update?.title || '';
+                                                  const updateDate = update?.update_date || update?.date || '';
+                                                  const description = update?.description || update?.update || '';
+                                                  const impact = update?.impact || '';
+                                                  const sourceUrl = update?.source || update?.source_url || update?.url;
+                                                  
+                                                  // Check if this update is new/changed
+                                                  const updateKey = getUpdateKey(update);
+                                                  const productNewIds = newUpdateIds.get(product.id);
+                                                  const isNewUpdate = productNewIds?.has(updateKey) || false;
+                                                  
                                             // Check if this is the next upcoming update
                                             const isNextUpcoming = idx === firstFutureIdx;
                                             const isFuture = updateDate && new Date(updateDate) >= today;
@@ -5181,24 +5181,24 @@ export default function Products() {
                                             // Calculate days until/ago
                                             let daysText = '';
                                             if (updateDate) {
-                                              const targetDate = new Date(updateDate);
-                                              targetDate.setHours(0, 0, 0, 0);
-                                              const diffTime = targetDate.getTime() - today.getTime();
-                                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                              
-                                              if (diffDays > 0) {
+                                                                    const targetDate = new Date(updateDate);
+                                                                    targetDate.setHours(0, 0, 0, 0);
+                                                                    const diffTime = targetDate.getTime() - today.getTime();
+                                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                                    
+                                                                    if (diffDays > 0) {
                                                 daysText = `in ${diffDays}d`;
-                                              } else if (diffDays < 0) {
-                                                daysText = `${Math.abs(diffDays)}d ago`;
-                                              } else {
-                                                daysText = 'today';
+                                                                    } else if (diffDays < 0) {
+                                                                      daysText = `${Math.abs(diffDays)}d ago`;
+                                                                    } else {
+                                                                      daysText = 'today';
                                               }
                                             }
-                                            
-                                            return (
-                                              <TooltipProvider key={idx}>
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
+                                                  
+                                                  return (
+                                                    <TooltipProvider key={idx}>
+                                                      <Tooltip>
+                                                        <TooltipTrigger asChild>
                                                     <div 
                                                       className={`flex-shrink-0 w-44 p-2.5 border-l-3 cursor-pointer transition-all ${
                                                         isNextUpcoming ? 'ring-2 ring-blue-300 ring-offset-1' : ''
@@ -5219,10 +5219,10 @@ export default function Products() {
                                                         }`}>
                                                           {updateDate || 'No date'}
                                                         </span>
-                                                        {isNewUpdate && (
+                                                            {isNewUpdate && (
                                                           <Badge className="bg-orange-500 text-white border-0 text-[7px] px-1 py-0">
-                                                            NEW
-                                                          </Badge>
+                                                                  NEW
+                                                                </Badge>
                                                         )}
                                                         {isNextUpcoming && !isNewUpdate && (
                                                           <Badge className="bg-blue-500 text-white border-0 text-[7px] px-1 py-0">
@@ -5237,7 +5237,7 @@ export default function Products() {
                                                           isNextUpcoming ? 'text-blue-500 font-semibold' : 'text-gray-400'
                                                         }`}>
                                                           {daysText}
-                                                        </div>
+                                                      </div>
                                                       )}
                                                       
                                                       {/* Title */}
@@ -5255,23 +5255,23 @@ export default function Products() {
                                                       }`}>
                                                         {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
                                                          elementType.includes('standard') ? 'Standard' : 'Marking'}
-                                                      </Badge>
+                                                                </Badge>
                                                       
                                                       {/* Link if available */}
-                                                      {sourceUrl && (
-                                                        <a 
-                                                          href={sourceUrl} 
-                                                          target="_blank" 
-                                                          rel="noopener noreferrer"
-                                                          onClick={(e) => e.stopPropagation()}
+                                                            {sourceUrl && (
+                                                                <a 
+                                                                  href={sourceUrl} 
+                                                                  target="_blank" 
+                                                                  rel="noopener noreferrer"
+                                                                  onClick={(e) => e.stopPropagation()}
                                                           className="inline-flex items-center gap-0.5 text-[9px] text-blue-500 hover:text-blue-600 mt-1"
                                                         >
                                                           <ExternalLink className="w-2.5 h-2.5" />
                                                           Source
                                                         </a>
                                                       )}
-                                                    </div>
-                                                  </TooltipTrigger>
+                                                          </div>
+                                                        </TooltipTrigger>
                                                   <TooltipContent side="bottom" className="max-w-sm bg-white border border-gray-200 shadow-lg p-3">
                                                     <p className="text-sm font-bold text-[hsl(var(--dashboard-link-color))] mb-1">{title}</p>
                                                     {description && <p className="text-xs text-gray-600 mb-2">{description.substring(0, 200)}...</p>}
@@ -5284,7 +5284,7 @@ export default function Products() {
                                                         {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
                                                          elementType.includes('standard') ? 'Standard' : 'Marking'}
                                                       </Badge>
-                                                      {impact && (
+                                                        {impact && (
                                                         <Badge className={`text-[9px] border-0 px-1.5 py-0.5 ${
                                                           impact.toUpperCase() === 'HIGH' ? 'bg-red-100 text-red-700' :
                                                           impact.toUpperCase() === 'MEDIUM' ? 'bg-amber-100 text-amber-700' :
@@ -5295,13 +5295,13 @@ export default function Products() {
                                                       )}
                                                     </div>
                                                   </TooltipContent>
-                                                </Tooltip>
-                                              </TooltipProvider>
-                                            );
-                                          })}
-                                        </div>
+                                                      </Tooltip>
+                                                    </TooltipProvider>
+                                                  );
+                                                })}
                                       </div>
-                                    );
+                                    </div>
+                                  );
                                   };
 
                                   // Combine all elements with updates for the list view
@@ -5319,12 +5319,12 @@ export default function Products() {
                                         <span className="text-[10px] text-gray-400">
                                           Scroll horizontally to see timeline
                                         </span>
-                                      </div>
+                                          </div>
                                       {allElementsWithUpdates.map((element) => {
                                         const type = elementTypes[element.name] || '';
                                         return renderElementTimeline(element.name, element.updates, type);
                                       })}
-                                    </div>
+                                          </div>
                                   );
                                 })()
                               ) : (
@@ -5411,20 +5411,20 @@ export default function Products() {
                         
                         // Otherwise show Continue button
                         return (
-                          <Button
-                            size="sm"
-                            onClick={() => {
+                        <Button
+                          size="sm"
+                          onClick={() => {
                               if (nextStep === 0) handleStartStep0(product.id);
                               else if (nextStep === 1) handleStartStep1(product.id);
                               else if (nextStep === 2) handleStartStep2(product.id);
                               else if (nextStep === 3) handleStartStep3(product.id);
                               else if (nextStep === 4) handleStartStep4(product.id);
-                            }}
+                          }}
                             className="bg-green-600 hover:bg-green-700 text-white border-0"
                           >
-                            <Play className="w-4 h-4 mr-1" />
+                              <Play className="w-4 h-4 mr-1" />
                             {stepLabel}
-                          </Button>
+                        </Button>
                         );
                       })()}
                       <DropdownMenu>
