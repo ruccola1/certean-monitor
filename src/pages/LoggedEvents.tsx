@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { eventLogService } from '@/services/eventLogService';
 import type { EventLog } from '@/types/eventLog';
 import { Loader2, Search, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ProductFilterbar } from '@/components/products/ProductFilterbar';
 
 const ACTION_LABELS: Record<string, string> = {
   product_added: 'Product Added',
@@ -118,14 +119,23 @@ export default function LoggedEvents() {
   };
 
   return (
-    <div className="min-h-screen bg-dashboard-view-background p-8">
-      <div className="max-w-7xl space-y-8">
-        <div>
-          <h1 className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Logged Events</h1>
-          <p className="text-[15px] text-[hsl(var(--dashboard-link-color))] mt-2">
-            Track all user actions and interactions within your workspace
-          </p>
-        </div>
+    <div className="flex flex-col h-full bg-dashboard-view-background">
+      {/* Filterbar */}
+      <ProductFilterbar 
+        activeFilters={new Set()} 
+        onToggleFilter={() => {}} 
+        onClearFilters={() => {}}
+        dynamicProducts={[]}
+      />
+
+      <div className="flex-1 overflow-auto p-8">
+        <div className="max-w-7xl space-y-8">
+          <div>
+            <h1 className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Logged Events</h1>
+            <p className="text-[15px] text-[hsl(var(--dashboard-link-color))] mt-2">
+              Track all user actions and interactions within your workspace
+            </p>
+          </div>
 
         {/* Filters */}
         <Card className="bg-white border-0">
@@ -348,6 +358,7 @@ export default function LoggedEvents() {
               </div>
             </CardContent>
           </Card>
+        </div>
         </div>
       </div>
     </div>

@@ -1,9 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ProductFilterbar } from '@/components/products/ProductFilterbar';
 
 export default function Retailers() {
   return (
-    <div className="min-h-screen bg-dashboard-view-background p-8">
-      <div className="max-w-7xl space-y-8">
+    <div className="flex flex-col h-full bg-dashboard-view-background">
+      {/* Filterbar */}
+      <ProductFilterbar 
+        activeFilters={new Set()} 
+        onToggleFilter={() => {}} 
+        onClearFilters={() => {}}
+        dynamicProducts={[]}
+      />
+
+      <div className="flex-1 overflow-auto p-8">
+        <div className="max-w-7xl space-y-8">
         <div>
           <h1 className="text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Retailers</h1>
           <p className="text-[15px] text-[hsl(var(--dashboard-link-color))] mt-2">
@@ -70,6 +80,7 @@ export default function Retailers() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );
