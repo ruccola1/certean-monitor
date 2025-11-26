@@ -259,9 +259,9 @@ export default function ComplianceMap() {
       />
 
       {/* Map Container - Full Width */}
-      <div className="flex-1 relative" ref={mapContainerRef}>
+      <div className="flex-1 relative overflow-hidden" ref={mapContainerRef}>
         {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-dashboard-view-background">
+          <div className="absolute inset-0 flex items-center justify-center bg-dashboard-view-background z-10">
             <div className="flex items-center gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
               <span className="text-lg text-gray-500">Loading compliance map...</span>
@@ -269,12 +269,13 @@ export default function ComplianceMap() {
           </div>
         ) : (
           <>
-            {/* Map */}
-            <ComposableMap
-              projection="geoMercator"
-              projectionConfig={{ scale: 150, center: [0, 30] }}
-              className="w-full h-full"
-              style={{ backgroundColor: 'hsl(210 20% 92%)' }}
+            {/* Map - contained in its own div to prevent overflow */}
+            <div className="absolute inset-0">
+              <ComposableMap
+                projection="geoMercator"
+                projectionConfig={{ scale: 150, center: [0, 30] }}
+                className="w-full h-full"
+                style={{ backgroundColor: 'hsl(210 20% 92%)' }}
             >
               <ZoomableGroup
                 zoom={position.zoom}
@@ -358,6 +359,7 @@ export default function ComplianceMap() {
                 </Geographies>
               </ZoomableGroup>
             </ComposableMap>
+            </div>
 
             {/* Hover Tooltip */}
             {hoverData && (
