@@ -2603,9 +2603,10 @@ export default function Products() {
                   padding: isBeingDeleted ? '0px' : undefined,
                 }}
               >
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                <CardContent className="p-3 md:p-6 relative">
+                  {/* Main wrapper with relative positioning for action buttons */}
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-bold text-[hsl(var(--dashboard-link-color))]">
                           {product.name}
@@ -2636,7 +2637,7 @@ export default function Products() {
                         })()}
                       </p>
 
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 text-sm mb-4">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 text-sm">
                         {/* Categories - show if available from step0Results */}
                         {product.step0Results?.categories && product.step0Results.categories.length > 0 && (
                           <div className="flex items-center gap-2">
@@ -5495,8 +5496,8 @@ export default function Products() {
                       </div>
                     </div>
 
-                    {/* Action Buttons - Top Right Corner */}
-                    <div className="flex gap-2 flex-shrink-0 items-start">
+                    {/* Action Buttons - Top Right Corner (fixed position) */}
+                    <div className="flex gap-2 flex-shrink-0 items-start absolute top-3 right-3 md:top-6 md:right-6">
                       {/* SIMPLE CONTINUE BUTTON - Shows if ANY step is not completed */}
                       {(() => {
                         // Check if all steps are completed
