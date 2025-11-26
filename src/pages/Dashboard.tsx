@@ -195,11 +195,15 @@ export default function Dashboard() {
       
       // STEP 2: Refresh data in background (stale-while-revalidate)
       console.log('Refreshing data in background...');
+      
+      // First fetch products and updates (needed for fallback summary)
       await Promise.all([
         fetchProducts(),
         fetchComplianceUpdates(),
-        fetchDashboardSummary(),
       ]);
+      
+      // Then fetch AI summary (can use updates data for fallback)
+      await fetchDashboardSummary();
       
       console.log('Dashboard initialization complete');
     };
@@ -268,16 +272,12 @@ export default function Dashboard() {
       if (!user?.sub) return;
       
       const clientId = getClientId(user);
-      const apiKey = import.meta.env.VITE_CERTEAN_API_KEY;
-      if (apiKey) {
-        apiService.setToken(apiKey);
-      }
       
-      // Timeout after 15 seconds (AI generation can take time)
+      // Timeout after 30 seconds (AI generation can take time)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
       
-      console.log('Fetching dashboard summary...');
+      console.log('Fetching dashboard summary for client:', clientId);
       const response = await apiService.get(
         `/api/dashboard/summary?client_id=${encodeURIComponent(clientId || '')}`,
         { signal: controller.signal }
@@ -286,19 +286,40 @@ export default function Dashboard() {
       
       console.log('Dashboard summary response:', response.data);
       
+      // Handle different response formats
       if (response.data?.success && response.data?.data?.text) {
         const text = response.data.data.text;
         setSummary(text);
         // Cache the results
         setCache(CACHE_KEYS.SUMMARY, text, clientId);
+      } else if (response.data?.text) {
+        // Direct text format
+        setSummary(response.data.text);
+        setCache(CACHE_KEYS.SUMMARY, response.data.text, clientId);
+      } else if (typeof response.data === 'string') {
+        // Plain string response
+        setSummary(response.data);
+        setCache(CACHE_KEYS.SUMMARY, response.data, clientId);
       } else {
-        console.log('No summary text in response, using fallback');
-        setSummary("Analyzing your compliance updates...");
+        console.log('No summary text in response:', response.data);
+        // Generate a fallback based on compliance updates count
+        const updatesCount = complianceUpdates.length;
+        if (updatesCount > 0) {
+          setSummary(`You have ${updatesCount} compliance updates to review. Check the details below for upcoming regulatory changes.`);
+        } else {
+          setSummary("Your compliance monitoring dashboard is ready. Add products and run compliance analysis to see updates.");
+        }
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Dashboard summary request timed out');
-        setSummary("Loading compliance insights...");
+        console.log('Dashboard summary request timed out after 30s');
+        // Generate fallback summary based on available data
+        const updatesCount = complianceUpdates.length;
+        if (updatesCount > 0) {
+          setSummary(`You have ${updatesCount} compliance updates across your products. Review the timeline below for details.`);
+        } else {
+          setSummary("Loading compliance insights...");
+        }
       } else {
         console.error('Failed to fetch dashboard summary:', error);
         setSummary("Your compliance monitoring dashboard");
@@ -306,7 +327,7 @@ export default function Dashboard() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [user]);
+  }, [user, complianceUpdates]);
 
   const handleProductAdded = () => {
     setIsAddProductOpen(false);
