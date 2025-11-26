@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { productService } from '@/services/productService';
 import { eventLogService } from '@/services/eventLogService';
-import { AlertCircle, X, Plus } from 'lucide-react';
+import { AlertCircle, X, Plus, Camera } from 'lucide-react';
 
 interface AddProductDialogProps {
   open: boolean;
@@ -454,6 +454,26 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
                       {uploadedImages.length} image(s) selected
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Take Photo (optional)
+                </Label>
+                <div className="border-0 bg-dashboard-view-background p-4 h-full flex flex-col items-center justify-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled
+                    className="border-0 bg-white text-gray-400 hover:bg-white cursor-not-allowed"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Open Camera
+                  </Button>
+                  <p className="text-xs text-gray-400 mt-2 text-center">
+                    Coming soon - capture product photos directly
+                  </p>
                 </div>
               </div>
 
