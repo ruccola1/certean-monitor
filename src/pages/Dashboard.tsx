@@ -436,42 +436,42 @@ export default function Dashboard() {
     if (!data || data.total === 0) return null;
     
     return (
-      <div className="bg-white p-3 shadow-lg border-0 max-w-xs">
-        <p className="font-bold text-sm text-gray-800 mb-2" style={{ fontFamily: 'Geist Mono, monospace' }}>
+      <div className="bg-white p-2 shadow-lg border-0 max-w-xs">
+        <p className="font-bold text-xs text-gray-800 mb-1" style={{ fontFamily: 'Geist Mono, monospace' }}>
           {label}
         </p>
-        <div className="space-y-1 mb-2">
+        <div className="flex gap-3 text-[10px] mb-1">
           {data.legislation > 0 && (
-            <div className="flex items-center gap-2 text-xs">
-              <div className="w-2 h-2 bg-[#3b82f6]"></div>
+            <div className="flex items-center gap-1">
+              <div className="w-1.5 h-1.5 bg-[#3b82f6]"></div>
               <span>Legislation: {data.legislation}</span>
             </div>
           )}
           {data.marking > 0 && (
-            <div className="flex items-center gap-2 text-xs">
-              <div className="w-2 h-2 bg-[#93c5fd]"></div>
+            <div className="flex items-center gap-1">
+              <div className="w-1.5 h-1.5 bg-[#93c5fd]"></div>
               <span>Markings: {data.marking}</span>
             </div>
           )}
           {data.standard > 0 && (
-            <div className="flex items-center gap-2 text-xs">
-              <div className="w-2 h-2 bg-[#60a5fa]"></div>
+            <div className="flex items-center gap-1">
+              <div className="w-1.5 h-1.5 bg-[#60a5fa]"></div>
               <span>Standards: {data.standard}</span>
             </div>
           )}
         </div>
         {data.titles && data.titles.length > 0 && (
-          <div className="border-t border-gray-100 pt-2 mt-2">
-            <p className="text-[10px] text-gray-500 mb-1 uppercase font-semibold">Updates:</p>
-            <ul className="space-y-0.5">
-              {data.titles.slice(0, 5).map((title: string, idx: number) => (
-                <li key={idx} className="text-[10px] text-gray-600 truncate" title={title}>
-                  {title.length > 40 ? title.substring(0, 40) + '...' : title}
+          <div className="border-t border-gray-100 pt-1.5 mt-1.5">
+            <p className="text-[9px] text-gray-400 mb-0.5 uppercase">Updates:</p>
+            <ul className="leading-tight">
+              {data.titles.slice(0, 8).map((title: string, idx: number) => (
+                <li key={idx} className="text-[9px] text-gray-600 truncate leading-none py-px" title={title}>
+                  {title.length > 35 ? title.substring(0, 35) + '...' : title}
                 </li>
               ))}
-              {data.titles.length > 5 && (
-                <li className="text-[10px] text-gray-400 italic">
-                  +{data.titles.length - 5} more...
+              {data.titles.length > 8 && (
+                <li className="text-[9px] text-gray-400 italic leading-none py-px">
+                  +{data.titles.length - 8} more
                 </li>
               )}
             </ul>
