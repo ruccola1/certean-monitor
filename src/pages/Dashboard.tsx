@@ -464,15 +464,20 @@ export default function Dashboard() {
         </div>
         {data.elements && data.elements.length > 0 && (
           <div className="border-t border-gray-100 pt-1.5 mt-1.5">
-            <p className="text-[9px] text-gray-400 mb-0.5 uppercase">Compliance Elements:</p>
-            <ul className="leading-tight">
+            <p className="text-[9px] text-gray-400 mb-1 uppercase">Compliance Elements:</p>
+            <ul className="space-y-0">
               {data.elements.slice(0, 8).map((element: string, idx: number) => (
-                <li key={idx} className="text-[9px] text-gray-600 truncate leading-none py-px" title={element}>
-                  {element.length > 35 ? element.substring(0, 35) + '...' : element}
+                <li 
+                  key={idx} 
+                  className="text-[9px] text-gray-600 truncate py-0.5 border-b border-gray-50 last:border-0 flex items-center gap-1.5" 
+                  title={element}
+                >
+                  <span className="w-1 h-1 bg-gray-300 flex-shrink-0"></span>
+                  {element.length > 32 ? element.substring(0, 32) + '...' : element}
                 </li>
               ))}
               {data.elements.length > 8 && (
-                <li className="text-[9px] text-gray-400 italic leading-none py-px">
+                <li className="text-[9px] text-gray-400 italic py-0.5 pl-2.5">
                   +{data.elements.length - 8} more
                 </li>
               )}
