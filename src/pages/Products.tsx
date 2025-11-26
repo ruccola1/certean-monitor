@@ -115,12 +115,14 @@ interface Step2Results {
     element_designation?: string;
     designation?: string;
     name?: string;
+    element_name?: string;
     element_type?: string;
     type?: string;
     element_description_long?: string;
     description?: string;
     element_countries?: string[];
     countries?: string[];
+    related_components?: string[];  // Component names this element applies to
     [key: string]: any;
   }>;
   elements_count: number;
@@ -128,6 +130,7 @@ interface Step2Results {
   ai_count: number;
   target_markets: string[];
   raw_response?: string;
+  component_element_map?: Record<string, string[]>;  // Component name → Element names
   // Legacy
   complianceElements?: ComplianceElement[];
   totalElements?: number;
@@ -346,6 +349,7 @@ export default function Products() {
   });
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const [newlyAddedProductId, setNewlyAddedProductId] = useState<string | null>(null);
   
   // Component info modal state
   const [componentInfoModal, setComponentInfoModal] = useState<{
@@ -942,10 +946,41 @@ export default function Products() {
     });
   }, [products, addNotification]);
 
-  const handleProductAdded = () => {
+  const handleProductAdded = async () => {
     setShowAddDialog(false);
     setProductToDuplicate(null); // Reset duplicate state
-    fetchProducts(true); // Skip debounce for user actions
+    
+    // Fetch products and animate the new one
+    try {
+      const clientId = getClientId(user);
+      if (!clientId) return;
+      
+      const response = await productService.getAll(clientId, true);
+      const newProducts = (response.data || []) as unknown as ProductDetails[];
+      
+      // Find the new product (one that wasn't in our current list)
+      const currentIds = new Set(products.map(p => p.id));
+      const newProduct = newProducts.find((p) => !currentIds.has(p.id));
+      
+      if (newProduct) {
+        // Set the new product ID for animation
+        setNewlyAddedProductId(newProduct.id);
+        
+        // Update products list
+        setProducts(newProducts);
+        
+        // Clear the animation state after animation completes
+        setTimeout(() => {
+          setNewlyAddedProductId(null);
+        }, 600);
+      } else {
+        // Fallback: just update products
+        setProducts(newProducts);
+      }
+    } catch (error) {
+      console.error('Error fetching products after add:', error);
+      fetchProducts(true);
+    }
   };
 
   // Lazy load step details when user expands a step
@@ -2503,6 +2538,7 @@ export default function Products() {
                 step4StatusLower === 'running' || step4StatusLower === 'processing';
 
               const isBeingDeleted = deletingProductId === product.id;
+              const isNewlyAdded = newlyAddedProductId === product.id;
 
               return (
               <Card 
@@ -2510,6 +2546,8 @@ export default function Products() {
                 className={`bg-white border-0 transition-all duration-300 ease-out ${
                   isBeingDeleted 
                     ? 'opacity-0 scale-95 -translate-x-4 overflow-hidden' 
+                    : isNewlyAdded
+                    ? 'animate-slide-in-right'
                     : 'opacity-100 scale-100 translate-x-0'
                 }`}
                 style={{
@@ -2670,16 +2708,79 @@ export default function Products() {
                                   ■
                                 </Button>
                               )}
-                              {step0StatusLower === 'completed' && step1StatusLower !== 'completed' && step1StatusLower !== 'running' && (
+                              {/* Continue button - run next incomplete step */}
+                              {(() => {
+                                // Find next step to run
+                                if (step0StatusLower !== 'completed') return null;
+                                if (step1StatusLower !== 'completed' && step1StatusLower !== 'running') {
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleStartStep1(product.id)}
+                                      disabled={isExecutingStep1}
+                                      className="bg-green-600 hover:bg-green-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                    >
+                                      {isExecutingStep1 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                      <Play className="w-3 h-3 mr-1" />
+                                      <span>Step 1</span>
+                                    </Button>
+                                  );
+                                }
+                                if (step1StatusLower === 'completed' && step2StatusLower !== 'completed' && !isStep2Running) {
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleStartStep2(product.id)}
+                                      disabled={isExecutingStep2}
+                                      className="bg-green-600 hover:bg-green-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                    >
+                                      {isExecutingStep2 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                      <Play className="w-3 h-3 mr-1" />
+                                      <span>Step 2</span>
+                                    </Button>
+                                  );
+                                }
+                                if (step2StatusLower === 'completed' && step3StatusLower !== 'completed' && !isStep3Running) {
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleStartStep3(product.id)}
+                                      disabled={isExecutingStep3}
+                                      className="bg-green-600 hover:bg-green-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                    >
+                                      {isExecutingStep3 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                      <Play className="w-3 h-3 mr-1" />
+                                      <span>Step 3</span>
+                                    </Button>
+                                  );
+                                }
+                                if (step3StatusLower === 'completed' && step4StatusLower !== 'completed' && !isStep4Running) {
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleStartStep4(product.id)}
+                                      className="bg-green-600 hover:bg-green-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                    >
+                                      <Play className="w-3 h-3 mr-1" />
+                                      <span>Step 4</span>
+                                    </Button>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              {/* Re-run Step 1 button */}
+                              {step1StatusLower === 'completed' && step0StatusLower === 'completed' && (
                                 <Button
+                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleStartStep1(product.id)}
                                   disabled={isExecutingStep1}
-                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                                  className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100 text-[10px] md:text-xs px-2 h-6 md:h-8"
                                 >
                                   {isExecutingStep1 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                                  <span className="md:hidden">{isExecutingStep1 ? 'Starting...' : 'Continue'}</span>
-                                  <span className="hidden md:inline">Continue</span>
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                  <span className="md:hidden">Re-run</span>
+                                  <span className="hidden md:inline">Re-run Step 1</span>
                                 </Button>
                               )}
                               {step1StatusLower === 'running' && (
@@ -2799,7 +2900,7 @@ export default function Products() {
                                     <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
                                     <span className="md:hidden">Running...</span>
                                     <span className="hidden md:inline">
-                                      {isStep2Running ? 'Finding elements...' : isStep3Running ? 'Finding sources...' : 'Generating updates...'}
+                                      {isStep2Running ? 'Finding elements...' : isStep3Running ? 'Finding sources...' : 'Identifying updates...'}
                                     </span>
                                   </Button>
                                   <Button
@@ -2812,29 +2913,87 @@ export default function Products() {
                                   </Button>
                                 </div>
                               )}
-                              {/* Start buttons when not running and not complete */}
-                              {!isStep2Running && !isStep3Running && !isStep4Running && step2StatusLower !== 'completed' && (
+                              {/* Start Step 2 button */}
+                              {!isStep2Running && !isStep3Running && !isStep4Running && step2StatusLower !== 'completed' && step1StatusLower === 'completed' && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStartStep2(product.id)}
                                   disabled={isExecutingStep2}
-                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                  className="bg-green-600 hover:bg-green-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
                                 >
                                   {isExecutingStep2 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                                  <span className="md:hidden">{isExecutingStep2 ? '...' : 'Start'}</span>
-                                  <span className="hidden md:inline">{isExecutingStep2 ? 'Starting...' : 'Find compliance elements'}</span>
+                                  <Play className="w-3 h-3 mr-1" />
+                                  <span className="md:hidden">{isExecutingStep2 ? '...' : 'Step 2'}</span>
+                                  <span className="hidden md:inline">{isExecutingStep2 ? 'Starting...' : 'Run Step 2'}</span>
                                 </Button>
                               )}
-                              {!isStep2Running && !isStep3Running && !isStep4Running && step2StatusLower === 'completed' && step4StatusLower !== 'completed' && (
+                              {/* Re-run Step 2 button */}
+                              {!isStep2Running && !isStep3Running && !isStep4Running && step2StatusLower === 'completed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStartStep2(product.id)}
+                                  disabled={isExecutingStep2}
+                                  className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100 text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                >
+                                  {isExecutingStep2 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                  <span className="md:hidden">Re-run</span>
+                                  <span className="hidden md:inline">Re-run Step 2</span>
+                                </Button>
+                              )}
+                              {/* Start Step 3 button */}
+                              {!isStep2Running && !isStep3Running && !isStep4Running && step2StatusLower === 'completed' && step3StatusLower !== 'completed' && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStartStep3(product.id)}
                                   disabled={isExecutingStep3}
-                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                  className="bg-green-600 hover:bg-green-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
                                 >
                                   {isExecutingStep3 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                                  <span className="md:hidden">{isExecutingStep3 ? '...' : 'Updates'}</span>
-                                  <span className="hidden md:inline">{isExecutingStep3 ? 'Starting...' : 'Generate updates'}</span>
+                                  <Play className="w-3 h-3 mr-1" />
+                                  <span className="md:hidden">{isExecutingStep3 ? '...' : 'Step 3'}</span>
+                                  <span className="hidden md:inline">{isExecutingStep3 ? 'Starting...' : 'Run Step 3'}</span>
+                                </Button>
+                              )}
+                              {/* Re-run Step 3 button */}
+                              {!isStep2Running && !isStep3Running && !isStep4Running && step3StatusLower === 'completed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStartStep3(product.id)}
+                                  disabled={isExecutingStep3}
+                                  className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100 text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                >
+                                  {isExecutingStep3 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                  <span className="md:hidden">Re-run</span>
+                                  <span className="hidden md:inline">Re-run Step 3</span>
+                                </Button>
+                              )}
+                              {/* Start Step 4 button */}
+                              {!isStep2Running && !isStep3Running && !isStep4Running && step3StatusLower === 'completed' && step4StatusLower !== 'completed' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStartStep4(product.id)}
+                                  className="bg-green-600 hover:bg-green-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                >
+                                  <Play className="w-3 h-3 mr-1" />
+                                  <span className="md:hidden">Step 4</span>
+                                  <span className="hidden md:inline">Run Step 4</span>
+                                </Button>
+                              )}
+                              {/* Re-run Step 4 button */}
+                              {!isStep2Running && !isStep3Running && !isStep4Running && step4StatusLower === 'completed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStartStep4(product.id)}
+                                  className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100 text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                >
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                  <span className="md:hidden">Re-run</span>
+                                  <span className="hidden md:inline">Re-run Step 4</span>
                                 </Button>
                               )}
                             </div>
@@ -4151,6 +4310,33 @@ export default function Products() {
                                             )}
                                           </div>
                                         )}
+                                        
+                                        {/* Related Compliance Elements (from Step 2) */}
+                                        {product.step2Results?.component_element_map && component.name && (
+                                          (() => {
+                                            const relatedElements = product.step2Results.component_element_map[component.name] || [];
+                                            if (relatedElements.length === 0) return null;
+                                            
+                                            return (
+                                              <div className="mt-3 pt-3 border-t border-gray-100">
+                                                <h6 className="text-xs font-semibold text-gray-600 mb-2">
+                                                  Related Compliance Elements ({relatedElements.length})
+                                                </h6>
+                                                <div className="flex flex-wrap gap-1">
+                                                  {relatedElements.map((elName: string, elIdx: number) => (
+                                                    <Badge 
+                                                      key={elIdx} 
+                                                      className="bg-purple-50 text-purple-700 text-[10px] border-0 px-2 py-0.5"
+                                                      title={elName}
+                                                    >
+                                                      {elName.length > 30 ? elName.substring(0, 30) + '...' : elName}
+                                                    </Badge>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            );
+                                          })()
+                                        )}
                                 </div>
                               )}
                                       </div>
@@ -4655,12 +4841,25 @@ export default function Products() {
                                                     </p>
                                                   )}
                                                   {Array.isArray(countries) && countries.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1">
+                                                    <div className="flex flex-wrap gap-1 mb-2">
                                                       {countries.map((country: any, cidx: number) => (
                                                         <Badge key={cidx} className="bg-blue-50 text-blue-700 text-xs border-0">
                                                           {String(country)}
                                                         </Badge>
                                                       ))}
+                                                    </div>
+                                                  )}
+                                                  {/* Related Components */}
+                                                  {Array.isArray(element?.related_components) && element.related_components.length > 0 && (
+                                                    <div className="mt-2 pt-2 border-t border-gray-100">
+                                                      <span className="text-[10px] text-gray-400 uppercase">Applies to:</span>
+                                                      <div className="flex flex-wrap gap-1 mt-1">
+                                                        {element.related_components.map((comp: string, cidx: number) => (
+                                                          <Badge key={cidx} className="bg-purple-50 text-purple-700 text-[10px] border-0 px-1.5 py-0.5">
+                                                            {comp}
+                                                          </Badge>
+                                                        ))}
+                                                      </div>
                                                     </div>
                                                   )}
                                                 </div>
@@ -5290,14 +5489,14 @@ export default function Products() {
                           stepLabel = 'Run Step 4';
                         }
                         
-                        // If all done, show Re-run All
+                        // If all done, show Re-run All (green outline style)
                         if (allDone) {
                           return (
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleRerunAll(product.id)}
-                              className="border-0 bg-green-50 text-green-600 hover:bg-green-100"
+                              className="border-green-300 bg-green-50 text-green-600 hover:bg-green-100"
                             >
                               <RefreshCw className="w-4 h-4 mr-1" />
                               Re-run All
@@ -5494,4 +5693,6 @@ export default function Products() {
     </div>
   );
 }
+
+
 

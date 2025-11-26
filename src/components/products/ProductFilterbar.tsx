@@ -133,7 +133,9 @@ const FilterDropdown = ({ label, icon: Icon, filterConfig, idPrefix, activeFilte
         key={`${idPrefix}-${item.id}`} 
         className={cn(
           "flex items-center space-x-2 py-1.5 px-2 hover:bg-white/10 cursor-pointer",
-          level > 0 && "pl-6"
+          level === 1 && "pl-6",
+          level === 2 && "pl-10",
+          level >= 3 && "pl-14"
         )}
         onClick={() => handleItemCheckedChange(item)}
       >
@@ -151,15 +153,22 @@ const FilterDropdown = ({ label, icon: Icon, filterConfig, idPrefix, activeFilte
     );
   };
 
-  const renderAccordionItem = (item: FilterDataItemJson) => {
+  // Recursive function to render accordion items at any depth
+  const renderAccordionItem = (item: FilterDataItemJson, level: number = 0) => {
     const { checked, indeterminate } = getCheckboxState(item);
     const isExpanded = openAccordionItems.includes(item.id);
     const hasChildren = item.children && item.children.length > 0;
 
+    // Calculate padding based on level
+    const paddingClass = level === 0 ? "px-2" : level === 1 ? "pl-6 pr-2" : level === 2 ? "pl-10 pr-2" : "pl-14 pr-2";
+
     return (
       <div key={`${idPrefix}-${item.id}`}>
         <div 
-          className="flex items-center py-1.5 px-2 hover:bg-white/10 cursor-pointer"
+          className={cn(
+            "flex items-center py-1.5 hover:bg-white/10 cursor-pointer",
+            paddingClass
+          )}
           onClick={() => hasChildren && toggleAccordion(item.id)}
         >
           <FilterCheckbox
@@ -174,14 +183,21 @@ const FilterDropdown = ({ label, icon: Icon, filterConfig, idPrefix, activeFilte
           </span>
           {hasChildren && (
             <ChevronDown className={cn(
-              "h-4 w-4 text-white/60 transition-transform",
+              "h-4 w-4 text-white/60 transition-transform flex-shrink-0",
               isExpanded && "rotate-180"
             )} />
           )}
         </div>
         {hasChildren && isExpanded && (
-          <div className="ml-2">
-            {item.children!.map(child => renderCheckboxItem(child, 1))}
+          <div>
+            {item.children!.map(child => {
+              // If child has children, render as nested accordion
+              if (child.children && child.children.length > 0) {
+                return renderAccordionItem(child, level + 1);
+              }
+              // Otherwise render as simple checkbox
+              return renderCheckboxItem(child, level + 1);
+            })}
           </div>
         )}
       </div>
@@ -257,13 +273,13 @@ const FilterDropdown = ({ label, icon: Icon, filterConfig, idPrefix, activeFilte
         align="start"
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <div className="p-2 max-h-80 overflow-y-auto">
-          {filterConfig.type === 'simple' && filterConfig.items.map(item => renderCheckboxItem(item))}
+        <div className="p-2 max-h-96 overflow-y-auto">
+          {filterConfig.type === 'simple' && filterConfig.items.map(item => renderCheckboxItem(item, 0))}
           {filterConfig.type === 'accordion' && filterConfig.items.map(item => {
             if (item.children && item.children.length > 0) {
-              return renderAccordionItem(item);
+              return renderAccordionItem(item, 0);
             }
-            return renderCheckboxItem(item);
+            return renderCheckboxItem(item, 0);
           })}
         </div>
       </DropdownMenuContent>

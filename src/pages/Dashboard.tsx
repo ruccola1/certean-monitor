@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
+import { ProductFilterbar } from '@/components/products/ProductFilterbar';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
 import { Loader2 } from 'lucide-react';
@@ -111,9 +112,27 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<string>("");
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [clientName, setClientName] = useState<string>('Your Company');
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   
   // Get user's first name
   const userName = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
+
+  // Filter handlers
+  const handleToggleFilter = useCallback((filterId: string, isChecked: boolean) => {
+    setActiveFilters(prev => {
+      const newSet = new Set(prev);
+      if (isChecked) {
+        newSet.add(filterId);
+      } else {
+        newSet.delete(filterId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setActiveFilters(new Set());
+  }, []);
 
   // Fetch client name (with caching)
   useEffect(() => {
@@ -254,15 +273,18 @@ export default function Dashboard() {
         apiService.setToken(apiKey);
       }
       
-      // Timeout after 3 seconds (reduced from 5)
+      // Timeout after 15 seconds (AI generation can take time)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       
+      console.log('Fetching dashboard summary...');
       const response = await apiService.get(
         `/api/dashboard/summary?client_id=${encodeURIComponent(clientId || '')}`,
         { signal: controller.signal }
       );
       clearTimeout(timeoutId);
+      
+      console.log('Dashboard summary response:', response.data);
       
       if (response.data?.success && response.data?.data?.text) {
         const text = response.data.data.text;
@@ -270,11 +292,13 @@ export default function Dashboard() {
         // Cache the results
         setCache(CACHE_KEYS.SUMMARY, text, clientId);
       } else {
+        console.log('No summary text in response, using fallback');
         setSummary("Analyzing your compliance updates...");
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        setSummary("Your compliance monitoring dashboard");
+        console.log('Dashboard summary request timed out');
+        setSummary("Loading compliance insights...");
       } else {
         console.error('Failed to fetch dashboard summary:', error);
         setSummary("Your compliance monitoring dashboard");
@@ -425,11 +449,19 @@ export default function Dashboard() {
   }, [products]);
 
   return (
-    <div className="min-h-screen bg-dashboard-view-background p-4 md:p-8">
-      <div className="max-w-7xl space-y-4 md:space-y-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome {userName} at {clientName}</h1>
+    <div className="min-h-screen bg-dashboard-view-background">
+      {/* Top Filterbar */}
+      <ProductFilterbar 
+        activeFilters={activeFilters}
+        onToggleFilter={handleToggleFilter}
+        onClearFilters={handleClearFilters}
+      />
+      
+      <div className="p-4 md:p-8">
+        <div className="max-w-7xl space-y-4 md:space-y-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome {userName} at {clientName}</h1>
             {summaryLoading ? (
               <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
                 Analyzing compliance updates...
@@ -746,6 +778,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
 
       <AddProductDialog 

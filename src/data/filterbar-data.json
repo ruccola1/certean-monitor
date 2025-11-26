@@ -3,90 +3,314 @@
     "type": "accordion",
     "items": [
       {
-        "id": "eu_category",
-        "label": "European Union (EU)",
+        "id": "europe_region",
+        "label": "Europe",
         "children": [
-          { "id": "682fa10ba50577edc143d1a2", "label": "Austria", "checked": false },
-          { "id": "682fa10ba50577edc143d1a3", "label": "Belgium", "checked": false },
-          { "id": "682fa10ba50577edc143d1a4", "label": "Bulgaria", "checked": false },
-          { "id": "682fa10ba50577edc143d1a5", "label": "Croatia", "checked": false },
-          { "id": "682fa10ba50577edc143d1a6", "label": "Cyprus", "checked": false },
-          { "id": "682fa10ba50577edc143d1a7", "label": "Czech Republic", "checked": false },
-          { "id": "682fa10ba50577edc143d1a8", "label": "Denmark", "checked": false },
-          { "id": "682fa10ba50577edc143d1a9", "label": "Estonia", "checked": false },
-          { "id": "682fa10ba50577edc143d1aa", "label": "Finland", "checked": false },
-          { "id": "682f9fbba50577edc143d1a1", "label": "France", "checked": false },
-          { "id": "682fa10ba50577edc143d1ab", "label": "Germany", "checked": false },
-          { "id": "682fa10ba50577edc143d1ac", "label": "Greece", "checked": false },
-          { "id": "682fa10ba50577edc143d1ad", "label": "Hungary", "checked": false },
-          { "id": "682fa10ba50577edc143d1ae", "label": "Ireland", "checked": false },
-          { "id": "682fa10ba50577edc143d1af", "label": "Italy", "checked": false },
-          { "id": "682fa10ba50577edc143d1b0", "label": "Latvia", "checked": false },
-          { "id": "682fa10ba50577edc143d1b1", "label": "Lithuania", "checked": false },
-          { "id": "682fa10ba50577edc143d1b2", "label": "Luxembourg", "checked": false },
-          { "id": "682fa10ba50577edc143d1b3", "label": "Malta", "checked": false },
-          { "id": "682fa10ba50577edc143d1b4", "label": "Netherlands", "checked": false },
-          { "id": "682fa10ba50577edc143d1b5", "label": "Poland", "checked": false },
-          { "id": "682fa10ba50577edc143d1b6", "label": "Portugal", "checked": false },
-          { "id": "682fa10ba50577edc143d1b7", "label": "Romania", "checked": false },
-          { "id": "682fa10ba50577edc143d1b8", "label": "Slovakia", "checked": false },
-          { "id": "682fa10ba50577edc143d1b9", "label": "Slovenia", "checked": false },
-          { "id": "682fa10ba50577edc143d1ba", "label": "Spain", "checked": false },
-          { "id": "682fa10ba50577edc143d1bb", "label": "Sweden", "checked": false }
+          {
+            "id": "eu_zone",
+            "label": "European Union (EU)",
+            "children": [
+              { "id": "eu_austria", "label": "Austria", "checked": false },
+              { "id": "eu_belgium", "label": "Belgium", "checked": false },
+              { "id": "eu_bulgaria", "label": "Bulgaria", "checked": false },
+              { "id": "eu_croatia", "label": "Croatia", "checked": false },
+              { "id": "eu_cyprus", "label": "Cyprus", "checked": false },
+              { "id": "eu_czechia", "label": "Czechia", "checked": false },
+              { "id": "eu_denmark", "label": "Denmark", "checked": false },
+              { "id": "eu_estonia", "label": "Estonia", "checked": false },
+              { "id": "eu_finland", "label": "Finland", "checked": false },
+              { "id": "eu_france", "label": "France", "checked": false },
+              { "id": "eu_germany", "label": "Germany", "checked": false },
+              { "id": "eu_greece", "label": "Greece", "checked": false },
+              { "id": "eu_hungary", "label": "Hungary", "checked": false },
+              { "id": "eu_ireland", "label": "Ireland", "checked": false },
+              { "id": "eu_italy", "label": "Italy", "checked": false },
+              { "id": "eu_latvia", "label": "Latvia", "checked": false },
+              { "id": "eu_lithuania", "label": "Lithuania", "checked": false },
+              { "id": "eu_luxembourg", "label": "Luxembourg", "checked": false },
+              { "id": "eu_malta", "label": "Malta", "checked": false },
+              { "id": "eu_netherlands", "label": "Netherlands", "checked": false },
+              { "id": "eu_poland", "label": "Poland", "checked": false },
+              { "id": "eu_portugal", "label": "Portugal", "checked": false },
+              { "id": "eu_romania", "label": "Romania", "checked": false },
+              { "id": "eu_slovakia", "label": "Slovakia", "checked": false },
+              { "id": "eu_slovenia", "label": "Slovenia", "checked": false },
+              { "id": "eu_spain", "label": "Spain", "checked": false },
+              { "id": "eu_sweden", "label": "Sweden", "checked": false }
+            ]
+          },
+          {
+            "id": "eea_zone",
+            "label": "EEA (non-EU)",
+            "children": [
+              { "id": "eea_iceland", "label": "Iceland", "checked": false },
+              { "id": "eea_liechtenstein", "label": "Liechtenstein", "checked": false },
+              { "id": "eea_norway", "label": "Norway", "checked": false }
+            ]
+          },
+          {
+            "id": "efta_zone",
+            "label": "EFTA (non-EEA)",
+            "children": [
+              { "id": "efta_switzerland", "label": "Switzerland", "checked": false }
+            ]
+          },
+          {
+            "id": "europe_other",
+            "label": "Other European",
+            "children": [
+              { "id": "eur_uk", "label": "United Kingdom", "checked": false },
+              { "id": "eur_albania", "label": "Albania", "checked": false },
+              { "id": "eur_andorra", "label": "Andorra", "checked": false },
+              { "id": "eur_belarus", "label": "Belarus", "checked": false },
+              { "id": "eur_bosnia", "label": "Bosnia and Herzegovina", "checked": false },
+              { "id": "eur_kosovo", "label": "Kosovo", "checked": false },
+              { "id": "eur_moldova", "label": "Moldova", "checked": false },
+              { "id": "eur_monaco", "label": "Monaco", "checked": false },
+              { "id": "eur_montenegro", "label": "Montenegro", "checked": false },
+              { "id": "eur_north_macedonia", "label": "North Macedonia", "checked": false },
+              { "id": "eur_san_marino", "label": "San Marino", "checked": false },
+              { "id": "eur_serbia", "label": "Serbia", "checked": false },
+              { "id": "eur_turkey", "label": "Turkey", "checked": false },
+              { "id": "eur_ukraine", "label": "Ukraine", "checked": false },
+              { "id": "eur_vatican", "label": "Vatican City", "checked": false }
+            ]
+          }
         ]
       },
       {
-        "id": "eea_category",
-        "label": "European Economic Area (EEA)",
-        "children": [
-          { "id": "eea_austria", "label": "Austria", "checked": false },
-          { "id": "eea_belgium", "label": "Belgium", "checked": false },
-          { "id": "682fa1b3a50577edc143d1c3", "label": "Iceland", "checked": false },
-          { "id": "682fa1b3a50577edc143d1c5", "label": "Liechtenstein", "checked": false },
-          { "id": "682fa1b3a50577edc143d1ca", "label": "Norway", "checked": false }
-        ]
-      },
-      {
-        "id": "gcc_category",
-        "label": "Gulf Cooperation Council (GCC)",
-        "children": [
-          { "id": "682fa3a9a50577edc143d20b", "label": "Bahrain", "checked": false },
-          { "id": "682fa3a9a50577edc143d21b", "label": "Kuwait", "checked": false },
-          { "id": "682fa3a9a50577edc143d225", "label": "Oman", "checked": false },
-          { "id": "682fa3a9a50577edc143d229", "label": "Qatar", "checked": false },
-          { "id": "682fa3a9a50577edc143d22b", "label": "Saudi Arabia", "checked": false },
-          { "id": "682fa3a9a50577edc143d235", "label": "United Arab Emirates", "checked": false }
-        ]
-      },
-      {
-        "id": "north_america_market",
+        "id": "north_america_region",
         "label": "North America",
         "children": [
-          { "id": "6847f4bb0699284639f41ce1", "label": "Canada", "checked": false },
-          { "id": "6847f4bb0699284639f41ced", "label": "Mexico", "checked": false },
-          { "id": "682f94179d96c68447294fba", "label": "United States", "checked": false }
+          {
+            "id": "usa_country",
+            "label": "United States",
+            "children": [
+              { "id": "us_federal", "label": "Federal (All States)", "checked": false },
+              { "id": "us_al", "label": "Alabama (AL)", "checked": false },
+              { "id": "us_ak", "label": "Alaska (AK)", "checked": false },
+              { "id": "us_az", "label": "Arizona (AZ)", "checked": false },
+              { "id": "us_ar", "label": "Arkansas (AR)", "checked": false },
+              { "id": "us_ca", "label": "California (CA)", "checked": false },
+              { "id": "us_co", "label": "Colorado (CO)", "checked": false },
+              { "id": "us_ct", "label": "Connecticut (CT)", "checked": false },
+              { "id": "us_de", "label": "Delaware (DE)", "checked": false },
+              { "id": "us_fl", "label": "Florida (FL)", "checked": false },
+              { "id": "us_ga", "label": "Georgia (GA)", "checked": false },
+              { "id": "us_hi", "label": "Hawaii (HI)", "checked": false },
+              { "id": "us_id", "label": "Idaho (ID)", "checked": false },
+              { "id": "us_il", "label": "Illinois (IL)", "checked": false },
+              { "id": "us_in", "label": "Indiana (IN)", "checked": false },
+              { "id": "us_ia", "label": "Iowa (IA)", "checked": false },
+              { "id": "us_ks", "label": "Kansas (KS)", "checked": false },
+              { "id": "us_ky", "label": "Kentucky (KY)", "checked": false },
+              { "id": "us_la", "label": "Louisiana (LA)", "checked": false },
+              { "id": "us_me", "label": "Maine (ME)", "checked": false },
+              { "id": "us_md", "label": "Maryland (MD)", "checked": false },
+              { "id": "us_ma", "label": "Massachusetts (MA)", "checked": false },
+              { "id": "us_mi", "label": "Michigan (MI)", "checked": false },
+              { "id": "us_mn", "label": "Minnesota (MN)", "checked": false },
+              { "id": "us_ms", "label": "Mississippi (MS)", "checked": false },
+              { "id": "us_mo", "label": "Missouri (MO)", "checked": false },
+              { "id": "us_mt", "label": "Montana (MT)", "checked": false },
+              { "id": "us_ne", "label": "Nebraska (NE)", "checked": false },
+              { "id": "us_nv", "label": "Nevada (NV)", "checked": false },
+              { "id": "us_nh", "label": "New Hampshire (NH)", "checked": false },
+              { "id": "us_nj", "label": "New Jersey (NJ)", "checked": false },
+              { "id": "us_nm", "label": "New Mexico (NM)", "checked": false },
+              { "id": "us_ny", "label": "New York (NY)", "checked": false },
+              { "id": "us_nc", "label": "North Carolina (NC)", "checked": false },
+              { "id": "us_nd", "label": "North Dakota (ND)", "checked": false },
+              { "id": "us_oh", "label": "Ohio (OH)", "checked": false },
+              { "id": "us_ok", "label": "Oklahoma (OK)", "checked": false },
+              { "id": "us_or", "label": "Oregon (OR)", "checked": false },
+              { "id": "us_pa", "label": "Pennsylvania (PA)", "checked": false },
+              { "id": "us_ri", "label": "Rhode Island (RI)", "checked": false },
+              { "id": "us_sc", "label": "South Carolina (SC)", "checked": false },
+              { "id": "us_sd", "label": "South Dakota (SD)", "checked": false },
+              { "id": "us_tn", "label": "Tennessee (TN)", "checked": false },
+              { "id": "us_tx", "label": "Texas (TX)", "checked": false },
+              { "id": "us_ut", "label": "Utah (UT)", "checked": false },
+              { "id": "us_vt", "label": "Vermont (VT)", "checked": false },
+              { "id": "us_va", "label": "Virginia (VA)", "checked": false },
+              { "id": "us_wa", "label": "Washington (WA)", "checked": false },
+              { "id": "us_wv", "label": "West Virginia (WV)", "checked": false },
+              { "id": "us_wi", "label": "Wisconsin (WI)", "checked": false },
+              { "id": "us_wy", "label": "Wyoming (WY)", "checked": false },
+              { "id": "us_dc", "label": "Washington D.C.", "checked": false },
+              { "id": "us_pr", "label": "Puerto Rico", "checked": false },
+              { "id": "us_vi", "label": "U.S. Virgin Islands", "checked": false },
+              { "id": "us_gu", "label": "Guam", "checked": false }
+            ]
+          },
+          {
+            "id": "canada_country",
+            "label": "Canada",
+            "children": [
+              { "id": "ca_federal", "label": "Federal (All Provinces)", "checked": false },
+              { "id": "ca_ab", "label": "Alberta (AB)", "checked": false },
+              { "id": "ca_bc", "label": "British Columbia (BC)", "checked": false },
+              { "id": "ca_mb", "label": "Manitoba (MB)", "checked": false },
+              { "id": "ca_nb", "label": "New Brunswick (NB)", "checked": false },
+              { "id": "ca_nl", "label": "Newfoundland and Labrador (NL)", "checked": false },
+              { "id": "ca_ns", "label": "Nova Scotia (NS)", "checked": false },
+              { "id": "ca_on", "label": "Ontario (ON)", "checked": false },
+              { "id": "ca_pe", "label": "Prince Edward Island (PE)", "checked": false },
+              { "id": "ca_qc", "label": "Quebec (QC)", "checked": false },
+              { "id": "ca_sk", "label": "Saskatchewan (SK)", "checked": false },
+              { "id": "ca_nt", "label": "Northwest Territories (NT)", "checked": false },
+              { "id": "ca_nu", "label": "Nunavut (NU)", "checked": false },
+              { "id": "ca_yt", "label": "Yukon (YT)", "checked": false }
+            ]
+          },
+          { "id": "na_mexico", "label": "Mexico", "checked": false }
         ]
       },
       {
-        "id": "asia_market",
-        "label": "Asia",
+        "id": "gcc_region",
+        "label": "Gulf Cooperation Council (GCC)",
         "children": [
-          { "id": "682fa3a9a50577edc143d210", "label": "China", "checked": false },
-          { "id": "682fa3a9a50577edc143d213", "label": "India", "checked": false },
-          { "id": "682fa3a9a50577edc143d214", "label": "Indonesia", "checked": false },
-          { "id": "682fa3a9a50577edc143d218", "label": "Japan", "checked": false },
-          { "id": "682fa3a9a50577edc143d22d", "label": "South Korea", "checked": false },
-          { "id": "682fa3a9a50577edc143d22c", "label": "Singapore", "checked": false },
-          { "id": "682fa3a9a50577edc143d231", "label": "Thailand", "checked": false },
-          { "id": "682fa3a9a50577edc143d237", "label": "Vietnam", "checked": false }
+          { "id": "gcc_bahrain", "label": "Bahrain", "checked": false },
+          { "id": "gcc_kuwait", "label": "Kuwait", "checked": false },
+          { "id": "gcc_oman", "label": "Oman", "checked": false },
+          { "id": "gcc_qatar", "label": "Qatar", "checked": false },
+          { "id": "gcc_saudi", "label": "Saudi Arabia", "checked": false },
+          { "id": "gcc_uae", "label": "United Arab Emirates", "checked": false }
         ]
       },
       {
-        "id": "oceania_market",
-        "label": "Oceania",
+        "id": "asia_pacific_region",
+        "label": "Asia Pacific",
         "children": [
-          { "id": "682fa517a50577edc143d27c", "label": "Australia", "checked": false },
-          { "id": "682fa517a50577edc143d282", "label": "New Zealand", "checked": false }
+          {
+            "id": "asean_zone",
+            "label": "ASEAN",
+            "children": [
+              { "id": "asean_brunei", "label": "Brunei", "checked": false },
+              { "id": "asean_cambodia", "label": "Cambodia", "checked": false },
+              { "id": "asean_indonesia", "label": "Indonesia", "checked": false },
+              { "id": "asean_laos", "label": "Laos", "checked": false },
+              { "id": "asean_malaysia", "label": "Malaysia", "checked": false },
+              { "id": "asean_myanmar", "label": "Myanmar", "checked": false },
+              { "id": "asean_philippines", "label": "Philippines", "checked": false },
+              { "id": "asean_singapore", "label": "Singapore", "checked": false },
+              { "id": "asean_thailand", "label": "Thailand", "checked": false },
+              { "id": "asean_vietnam", "label": "Vietnam", "checked": false }
+            ]
+          },
+          {
+            "id": "east_asia",
+            "label": "East Asia",
+            "children": [
+              { "id": "asia_china", "label": "China", "checked": false },
+              { "id": "asia_hong_kong", "label": "Hong Kong", "checked": false },
+              { "id": "asia_japan", "label": "Japan", "checked": false },
+              { "id": "asia_south_korea", "label": "South Korea", "checked": false },
+              { "id": "asia_taiwan", "label": "Taiwan", "checked": false },
+              { "id": "asia_mongolia", "label": "Mongolia", "checked": false }
+            ]
+          },
+          {
+            "id": "south_asia",
+            "label": "South Asia",
+            "children": [
+              { "id": "asia_india", "label": "India", "checked": false },
+              { "id": "asia_bangladesh", "label": "Bangladesh", "checked": false },
+              { "id": "asia_pakistan", "label": "Pakistan", "checked": false },
+              { "id": "asia_sri_lanka", "label": "Sri Lanka", "checked": false },
+              { "id": "asia_nepal", "label": "Nepal", "checked": false }
+            ]
+          },
+          {
+            "id": "oceania_zone",
+            "label": "Oceania",
+            "children": [
+              { "id": "oceania_australia", "label": "Australia", "checked": false },
+              { "id": "oceania_new_zealand", "label": "New Zealand", "checked": false },
+              { "id": "oceania_fiji", "label": "Fiji", "checked": false },
+              { "id": "oceania_papua", "label": "Papua New Guinea", "checked": false }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "middle_east_region",
+        "label": "Middle East (non-GCC)",
+        "children": [
+          { "id": "me_israel", "label": "Israel", "checked": false },
+          { "id": "me_jordan", "label": "Jordan", "checked": false },
+          { "id": "me_lebanon", "label": "Lebanon", "checked": false },
+          { "id": "me_iraq", "label": "Iraq", "checked": false },
+          { "id": "me_iran", "label": "Iran", "checked": false },
+          { "id": "me_egypt", "label": "Egypt", "checked": false },
+          { "id": "me_yemen", "label": "Yemen", "checked": false }
+        ]
+      },
+      {
+        "id": "africa_region",
+        "label": "Africa",
+        "children": [
+          {
+            "id": "africa_north",
+            "label": "North Africa",
+            "children": [
+              { "id": "afr_morocco", "label": "Morocco", "checked": false },
+              { "id": "afr_algeria", "label": "Algeria", "checked": false },
+              { "id": "afr_tunisia", "label": "Tunisia", "checked": false },
+              { "id": "afr_libya", "label": "Libya", "checked": false }
+            ]
+          },
+          {
+            "id": "africa_sub",
+            "label": "Sub-Saharan Africa",
+            "children": [
+              { "id": "afr_south_africa", "label": "South Africa", "checked": false },
+              { "id": "afr_nigeria", "label": "Nigeria", "checked": false },
+              { "id": "afr_kenya", "label": "Kenya", "checked": false },
+              { "id": "afr_ghana", "label": "Ghana", "checked": false },
+              { "id": "afr_ethiopia", "label": "Ethiopia", "checked": false },
+              { "id": "afr_tanzania", "label": "Tanzania", "checked": false }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "latam_region",
+        "label": "Latin America",
+        "children": [
+          {
+            "id": "mercosur_zone",
+            "label": "Mercosur",
+            "children": [
+              { "id": "latam_brazil", "label": "Brazil", "checked": false },
+              { "id": "latam_argentina", "label": "Argentina", "checked": false },
+              { "id": "latam_paraguay", "label": "Paraguay", "checked": false },
+              { "id": "latam_uruguay", "label": "Uruguay", "checked": false }
+            ]
+          },
+          {
+            "id": "pacific_alliance",
+            "label": "Pacific Alliance",
+            "children": [
+              { "id": "latam_chile", "label": "Chile", "checked": false },
+              { "id": "latam_colombia", "label": "Colombia", "checked": false },
+              { "id": "latam_peru", "label": "Peru", "checked": false }
+            ]
+          },
+          {
+            "id": "central_america",
+            "label": "Central America & Caribbean",
+            "children": [
+              { "id": "latam_costa_rica", "label": "Costa Rica", "checked": false },
+              { "id": "latam_panama", "label": "Panama", "checked": false },
+              { "id": "latam_guatemala", "label": "Guatemala", "checked": false },
+              { "id": "latam_dominican", "label": "Dominican Republic", "checked": false },
+              { "id": "latam_jamaica", "label": "Jamaica", "checked": false }
+            ]
+          },
+          { "id": "latam_venezuela", "label": "Venezuela", "checked": false },
+          { "id": "latam_ecuador", "label": "Ecuador", "checked": false },
+          { "id": "latam_bolivia", "label": "Bolivia", "checked": false }
         ]
       }
     ]
@@ -234,4 +458,3 @@
     ]
   }
 }
-
