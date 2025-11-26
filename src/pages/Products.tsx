@@ -6,9 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, XCircle, Eye, EyeOff, ExternalLink, Bell, MoreVertical, Edit, Copy, Share2, RefreshCw, Link2, Link2Off, Info, Upload, FileText, Link as LinkIcon, Camera, Mic, Image, File, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, XCircle, Eye, EyeOff, ExternalLink, MoreVertical, Edit, Copy, Share2, RefreshCw, Link2, Link2Off, Info, Upload, FileText, Link as LinkIcon, Camera, Mic, Image, File, ChevronDown, ChevronRight } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { ProductFilterbar } from '@/components/products/ProductFilterbar';
 import { productService } from '@/services/productService';
@@ -340,6 +339,8 @@ export default function Products() {
   const [productToDuplicate, setProductToDuplicate] = useState<ProductDetails | null>(null);
   const [complianceAreas, setComplianceAreas] = useState<ComplianceArea[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  // Expanded groups for compliance elements (Legislation, Standards, Markings)
+  const [expandedElementGroups, setExpandedElementGroups] = useState<Set<string>>(new Set(['legislation', 'standard', 'marking'])); // All expanded by default
   // const [pollingInterval, setPollingInterval] = useState<ReturnType<typeof setTimeout> | null>(null);
   // Single state to track which step is expanded (only one at a time)
   const [expandedStep, setExpandedStep] = useState<{ productId: string; stepNumber: number } | null>(null);
@@ -4813,126 +4814,203 @@ export default function Products() {
                                     return acc;
                                   }, {});
 
-                                  const renderElementColumn = (category: string, title: string) => (
-                                    <div key={category}>
-                                      <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
-                                        <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
-                                        <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
-                                          {title}
-                                      </h6>
-                                        <span className="text-xs text-gray-400">({grouped[category]?.length || 0})</span>
-                                      </div>
-                                      <div className="space-y-4">
-                                        {grouped[category]?.map((element: any, idx: number) => {
-                                          const name = element?.element_name || element?.name || 'Unnamed';
-                                          const designation = element?.element_designation || element?.designation || '';
-                                          const description = element?.element_description_long || element?.description || '';
-                                          const countries = element?.element_countries || element?.countries || [];
-                                          
-                                          // Look up source URL from Step 3 mapping first
-                                          let elementUrl = element?.source_official || element?.element_url || element?.url;
-                                          if (!elementUrl && product.step3Payload?.element_mappings) {
-                                            const mapping = product.step3Payload.element_mappings.find(
-                                              m => m.step2_element_name === name || m.step2_designation === designation
-                                            );
-                                            if (mapping) {
-                                              elementUrl = mapping.source_official;
-                                            }
-                                          }
-                                          
-                                          // Find original index in full list for removal
-                                          const fullList = editingStep2?.productId === product.id 
-                                            ? step2EditData?.compliance_elements || []
-                                            : filteredElements;
-                                          const originalIndex = fullList.findIndex((el: any) => {
-                                            const elName = el?.element_name || el?.name;
-                                            const elDes = el?.element_designation || el?.designation;
-                                            return (elName === name && elDes === designation) || 
-                                                   (elName === name && !elDes && !designation) || 
-                                                   (elDes === designation && elDes);
-                                          });
-                                          
-                                          return (
-                                            <div key={`${category}-${originalIndex}-${idx}`} className="relative bg-white p-3 transition-colors hover:bg-gray-50">
-                                              {/* X button for removal in edit mode */}
-                                              {editingStep2?.productId === product.id && originalIndex !== -1 && (
-                                                <button
-                                                  onClick={() => handleRemoveStep2Element(originalIndex)}
-                                                  className="absolute top-2 right-2 text-red-500 hover:text-red-700 z-10"
-                                                  title="Remove element"
-                                                >
-                                                  <XCircle className="w-4 h-4" />
-                                                </button>
-                                              )}
+                                  // Toggle group expansion
+                                  const toggleElementGroup = (groupKey: string) => {
+                                    setExpandedElementGroups(prev => {
+                                      const newSet = new Set(prev);
+                                      if (newSet.has(groupKey)) {
+                                        newSet.delete(groupKey);
+                                      } else {
+                                        newSet.add(groupKey);
+                                      }
+                                      return newSet;
+                                    });
+                                  };
+
+                                  const renderElementGroup = (category: string, title: string) => {
+                                    const elements = grouped[category] || [];
+                                    const isExpanded = expandedElementGroups.has(category);
+                                    
+                                    return (
+                                      <div key={category} className="mb-4">
+                                        {/* Collapsible Header */}
+                                        <button
+                                          onClick={() => toggleElementGroup(category)}
+                                          className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            {isExpanded ? (
+                                              <ChevronDown className="w-4 h-4 text-gray-500" />
+                                            ) : (
+                                              <ChevronRight className="w-4 h-4 text-gray-500" />
+                                            )}
+                                            <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
+                                            <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+                                              {title}
+                                            </h6>
+                                            <span className="text-xs text-gray-400">({elements.length})</span>
+                                          </div>
+                                        </button>
+                                        
+                                        {/* Collapsible Content */}
+                                        {isExpanded && elements.length > 0 && (
+                                          <div className="border-l-2 border-slate-200 ml-2">
+                                            {elements.map((element: any, idx: number) => {
+                                              const name = element?.element_name || element?.name || 'Unnamed';
+                                              const designation = element?.element_designation || element?.designation || '';
+                                              const description = element?.element_description_long || element?.description || '';
+                                              const countries = element?.element_countries || element?.countries || [];
                                               
-                                              {/* Link icon in top right corner - only show if URL exists and not in edit mode */}
-                                              {!editingStep2 && elementUrl && (
-                                                <div className="absolute top-2 right-2">
+                                              // Additional metadata
+                                              const inForce = element?.in_force ?? element?.is_active ?? true;
+                                              const effectiveDate = element?.effective_date || element?.entry_into_force || element?.date_in_force || '';
+                                              const deadline = element?.deadline || element?.compliance_deadline || element?.transition_deadline || '';
+                                              const lastUpdated = element?.last_updated || element?.revision_date || '';
+                                              
+                                              // Look up source URL from Step 3 mapping first
+                                              let elementUrl = element?.source_official || element?.element_url || element?.url;
+                                              if (!elementUrl && product.step3Payload?.element_mappings) {
+                                                const mapping = product.step3Payload.element_mappings.find(
+                                                  (m: any) => m.step2_element_name === name || m.step2_designation === designation
+                                                );
+                                                if (mapping) {
+                                                  elementUrl = mapping.source_official;
+                                                }
+                                              }
+                                              
+                                              // Find original index in full list for removal
+                                              const fullList = editingStep2?.productId === product.id 
+                                                ? step2EditData?.compliance_elements || []
+                                                : filteredElements;
+                                              const originalIndex = fullList.findIndex((el: any) => {
+                                                const elName = el?.element_name || el?.name;
+                                                const elDes = el?.element_designation || el?.designation;
+                                                return (elName === name && elDes === designation) || 
+                                                       (elName === name && !elDes && !designation) || 
+                                                       (elDes === designation && elDes);
+                                              });
+                                              
+                                              return (
+                                                <div key={`${category}-${originalIndex}-${idx}`} className="relative bg-white p-3 ml-4 mt-1 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                                                  {/* X button for removal in edit mode */}
+                                                  {editingStep2?.productId === product.id && originalIndex !== -1 && (
+                                                    <button
+                                                      onClick={() => handleRemoveStep2Element(originalIndex)}
+                                                      className="absolute top-2 right-2 text-red-500 hover:text-red-700 z-10"
+                                                      title="Remove element"
+                                                    >
+                                                      <XCircle className="w-4 h-4" />
+                                                    </button>
+                                                  )}
+                                                  
+                                                  {/* Link icon - only show if URL exists and not in edit mode */}
+                                                  {!editingStep2 && elementUrl && (
+                                                    <div className="absolute top-2 right-2">
                                                       <a 
                                                         href={elementUrl} 
                                                         target="_blank" 
                                                         rel="noopener noreferrer"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="text-blue-500 hover:text-blue-600"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="text-blue-500 hover:text-blue-600"
                                                         title="View compliance element details"
                                                       >
-                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                        <ExternalLink className="w-3.5 h-3.5" />
                                                       </a>
-                                                  </div>
-                                              )}
-                                              
-                                              <div className="flex items-start gap-2 pr-6">
-                                                <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] mt-0.5 flex-shrink-0" />
-                                                <div className="flex-1">
-                                                  <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
-                                                    {name}
-                                                  </h6>
-                                                  {designation && (
-                                                    <p className="text-xs text-gray-500 mb-2">
-                                                      {designation}
-                                                    </p>
-                                                  )}
-                                                  {description && (
-                                                    <p className="text-xs text-gray-600 mb-2">
-                                                      {String(description).substring(0, 150)}{String(description).length > 150 ? '...' : ''}
-                                                    </p>
-                                                  )}
-                                                  {Array.isArray(countries) && countries.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 mb-2">
-                                                      {countries.map((country: any, cidx: number) => (
-                                                        <Badge key={cidx} className="bg-blue-50 text-blue-700 text-xs border-0">
-                                                          {String(country)}
-                                                        </Badge>
-                                                      ))}
                                                     </div>
                                                   )}
-                                                  {/* Related Components */}
-                                                  {Array.isArray(element?.related_components) && element.related_components.length > 0 && (
-                                                    <div className="mt-2 pt-2 border-t border-gray-100">
-                                                      <span className="text-[10px] text-gray-400 uppercase">Applies to:</span>
-                                                      <div className="flex flex-wrap gap-1 mt-1">
-                                                        {element.related_components.map((comp: string, cidx: number) => (
-                                                          <Badge key={cidx} className="bg-purple-50 text-purple-700 text-[10px] border-0 px-1.5 py-0.5">
-                                                            {comp}
+                                                  
+                                                  <div className="pr-8">
+                                                    {/* Title row with in-force badge */}
+                                                    <div className="flex items-start gap-2 mb-1">
+                                                      <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] flex-1">
+                                                        {name}
+                                                      </h6>
+                                                      <Badge className={`text-[9px] border-0 px-1.5 py-0 ${
+                                                        inForce ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                                                      }`}>
+                                                        {inForce ? 'In Force' : 'Pending'}
+                                                      </Badge>
+                                                    </div>
+                                                    
+                                                    {designation && (
+                                                      <p className="text-xs text-gray-500 mb-1.5 font-mono">
+                                                        {designation}
+                                                      </p>
+                                                    )}
+                                                    
+                                                    {description && (
+                                                      <p className="text-xs text-gray-600 mb-2">
+                                                        {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
+                                                      </p>
+                                                    )}
+                                                    
+                                                    {/* Metadata row: dates, deadlines */}
+                                                    <div className="flex flex-wrap gap-3 text-[10px] text-gray-500 mb-2">
+                                                      {effectiveDate && (
+                                                        <span className="flex items-center gap-1">
+                                                          <span className="text-gray-400">Effective:</span>
+                                                          <span className="font-mono">{new Date(effectiveDate).toLocaleDateString()}</span>
+                                                        </span>
+                                                      )}
+                                                      {deadline && (
+                                                        <span className="flex items-center gap-1 text-amber-600">
+                                                          <span>Deadline:</span>
+                                                          <span className="font-mono font-semibold">{new Date(deadline).toLocaleDateString()}</span>
+                                                        </span>
+                                                      )}
+                                                      {lastUpdated && (
+                                                        <span className="flex items-center gap-1">
+                                                          <span className="text-gray-400">Updated:</span>
+                                                          <span className="font-mono">{new Date(lastUpdated).toLocaleDateString()}</span>
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                    
+                                                    {/* Countries */}
+                                                    {Array.isArray(countries) && countries.length > 0 && (
+                                                      <div className="flex flex-wrap gap-1 mb-2">
+                                                        {countries.map((country: any, cidx: number) => (
+                                                          <Badge key={cidx} className="bg-blue-50 text-blue-700 text-[10px] border-0 px-1.5 py-0">
+                                                            {String(country)}
                                                           </Badge>
                                                         ))}
                                                       </div>
-                                                    </div>
-                                                  )}
+                                                    )}
+                                                    
+                                                    {/* Related Components */}
+                                                    {Array.isArray(element?.related_components) && element.related_components.length > 0 && (
+                                                      <div className="pt-2 border-t border-gray-100">
+                                                        <span className="text-[9px] text-gray-400 uppercase">Applies to:</span>
+                                                        <div className="flex flex-wrap gap-1 mt-1">
+                                                          {element.related_components.map((comp: string, cidx: number) => (
+                                                            <Badge key={cidx} className="bg-purple-50 text-purple-700 text-[9px] border-0 px-1.5 py-0">
+                                                              {comp}
+                                                            </Badge>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </div>
                                                 </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                        
+                                        {isExpanded && elements.length === 0 && (
+                                          <div className="ml-6 py-2 text-xs text-gray-400 italic">
+                                            No {title.toLowerCase()} found
+                                          </div>
+                                        )}
                                       </div>
-                                    </div>
-                                  );
+                                    );
+                                  };
 
                                   return (
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                      {renderElementColumn('legislation', 'Legislation')}
-                                      {renderElementColumn('standard', 'Standards')}
-                                      {renderElementColumn('marking', 'Markings')}
+                                    <div className="space-y-2">
+                                      {renderElementGroup('legislation', 'Legislation')}
+                                      {renderElementGroup('standard', 'Standards')}
+                                      {renderElementGroup('marking', 'Markings')}
                                     </div>
                                   );
                                 })()
@@ -4964,19 +5042,6 @@ export default function Products() {
                               
                               {product.step4Results.compliance_updates && Array.isArray(product.step4Results.compliance_updates) && product.step4Results.compliance_updates.length > 0 ? (
                                 (() => {
-                                  // Helper function to filter updates by date
-                                  const today = new Date();
-                                  today.setHours(0, 0, 0, 0);
-                                  
-                                  const filterUpdatesByDate = (updates: any[], isFuture: boolean) => {
-                                    return updates.filter((update: any) => {
-                                      const updateDate = update?.update_date || update?.date || '';
-                                      if (!updateDate) return !isFuture; // No date = show in previous
-                                      const date = new Date(updateDate);
-                                      return isFuture ? date >= today : date < today;
-                                    });
-                                  };
-                                  
                                   // Group updates by regulation/element
                                   const updatesByElement: { [key: string]: any[] } = {};
                                   
@@ -5043,450 +5108,195 @@ export default function Products() {
                                     }
                                   });
 
-                                  // Function to render columns for a given set of updates (filtered by date)
-                                  const renderColumns = (legislationData: { name: string; updates: any[] }[], standardsData: { name: string; updates: any[] }[], markingsData: { name: string; updates: any[] }[]) => (
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                      {/* Legislation Column */}
-                                      <div>
-                                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
-                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
-                                          <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
-                                            Legislation
-                                        </h6>
-                                          <span className="text-xs text-gray-400">({legislationData.length})</span>
-                                        </div>
-                                        <div className="space-y-4">
-                                          {legislationData.map((element, elIdx) => (
-                                            <div key={elIdx} className="space-y-2">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] uppercase tracking-wide mb-2">
-                                                {element.name}
-                                              </h6>
-                                              <div className="space-y-1.5">
-                                                {element.updates.map((update: any, idx: number) => {
-                                                  const title = update?.title || '';
-                                                  const updateDate = update?.update_date || update?.date || '';
-                                                  const description = update?.description || update?.update || '';
-                                                  const impact = update?.impact || '';
-                                                  const sourceUrl = update?.source || update?.source_url || update?.url;
-                                                  
-                                                  // Check if this update is new/changed
-                                                  const updateKey = getUpdateKey(update);
-                                                  const productNewIds = newUpdateIds.get(product.id);
-                                                  const isNewUpdate = productNewIds?.has(updateKey) || false;
-                                                  
-                                                  return (
-                                                    <TooltipProvider key={idx}>
-                                                      <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                          <div className={`relative p-3 border-l-4 cursor-pointer transition-colors ${
-                                                            isNewUpdate ? 'bg-orange-50 hover:bg-orange-100' : 'bg-white hover:bg-gray-50'
-                                                          } ${
-                                                            impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
-                                                            impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
-                                                            impact ? 'border-green-500' : 'border-blue-500'
-                                                          }`}>
-                                                            {/* NEW badge for new/changed updates */}
-                                                            {isNewUpdate && (
-                                                              <div className="absolute top-2 left-2">
-                                                                <Badge className="bg-orange-500 text-white border-0 text-[8px] px-1 py-0 h-3.5">
-                                                                  NEW
-                                                                </Badge>
-                                                              </div>
-                                                            )}
-                                                            {/* Link icon in top right corner - only show if URL exists */}
-                                                            {sourceUrl && (
-                                                              <div className="absolute top-2 right-2">
-                                                                <a 
-                                                                  href={sourceUrl} 
-                                                                  target="_blank" 
-                                                                  rel="noopener noreferrer"
-                                                                  onClick={(e) => e.stopPropagation()}
-                                                                  className="text-blue-500 hover:text-blue-600"
-                                                                  title="View update source"
-                                                                >
-                                                                  <ExternalLink className="w-3.5 h-3.5" />
-                                                                </a>
-                                                              </div>
-                                                            )}
-                                                            
-                                                            <div className={`flex items-start gap-3 pr-6 ${isNewUpdate ? 'mt-4' : ''}`}>
-                                                              <Bell className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isNewUpdate ? 'text-orange-500' : 'text-blue-500'}`} />
-                                                              <div className="flex-1 min-w-0">
-                                                                <div className="mb-1.5">
-                                                                  {updateDate && (() => {
-                                                                    const today = new Date();
-                                                                    today.setHours(0, 0, 0, 0);
-                                                                    const targetDate = new Date(updateDate);
-                                                                    targetDate.setHours(0, 0, 0, 0);
-                                                                    const diffTime = targetDate.getTime() - today.getTime();
-                                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                                                    
-                                                                    let daysText = '';
-                                                                    if (diffDays > 0) {
-                                                                      daysText = `${diffDays}d`;
-                                                                    } else if (diffDays < 0) {
-                                                                      daysText = `${Math.abs(diffDays)}d ago`;
-                                                                    } else {
-                                                                      daysText = 'today';
-                                                                    }
-                                                                    
-                                                                    return (
-                                                                      <span className="text-xs text-gray-500">
-                                                                        {updateDate} <span className="text-[10px] text-gray-400 ml-1">({daysText})</span>
-                                                                      </span>
-                                                                    );
-                                                                  })()}
-                                                      </div>
-                                                          <p className="text-[13px] font-semibold text-[hsl(var(--dashboard-link-color))] leading-snug mb-1.5">
-                                                        {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
-                                                      </p>
-                                                                {description && title && (
-                                                                  <p className="text-xs text-gray-600 leading-relaxed">
-                                                                    {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
-                                                        </p>
-                                                      )}
-                                                    </div>
-                                                            </div>
-                                                          </div>
-                                                        </TooltipTrigger>
-                                                        {impact && (
-                                                          <TooltipContent>
-                                                            <p className="text-xs">{impact.toUpperCase()} Impact</p>
-                                                          </TooltipContent>
-                                                        )}
-                                                      </Tooltip>
-                                                    </TooltipProvider>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      {/* Standards Column */}
-                                      <div>
-                                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
-                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
-                                          <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
-                                            Standards
-                                        </h6>
-                                          <span className="text-xs text-gray-400">({standardsData.length})</span>
-                                        </div>
-                                        <div className="space-y-4">
-                                          {standardsData.map((element, elIdx) => (
-                                            <div key={elIdx} className="space-y-2">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] uppercase tracking-wide mb-2">
-                                                {element.name}
-                                              </h6>
-                                              <div className="space-y-1.5">
-                                                {element.updates.map((update: any, idx: number) => {
-                                                  const title = update?.title || '';
-                                                  const updateDate = update?.update_date || update?.date || '';
-                                                  const description = update?.description || update?.update || '';
-                                                  const impact = update?.impact || '';
-                                                  const sourceUrl = update?.source || update?.source_url || update?.url;
-                                                  
-                                                  // Check if this update is new/changed
-                                                  const updateKey = getUpdateKey(update);
-                                                  const productNewIds = newUpdateIds.get(product.id);
-                                                  const isNewUpdate = productNewIds?.has(updateKey) || false;
-                                                  
-                                                  return (
-                                                    <TooltipProvider key={idx}>
-                                                      <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                          <div className={`relative p-3 border-l-4 cursor-pointer transition-colors ${
-                                                            isNewUpdate ? 'bg-orange-50 hover:bg-orange-100' : 'bg-white hover:bg-gray-50'
-                                                          } ${
-                                                            impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
-                                                            impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
-                                                            impact ? 'border-green-500' : 'border-blue-500'
-                                                          }`}>
-                                                            {/* NEW badge for new/changed updates */}
-                                                            {isNewUpdate && (
-                                                              <div className="absolute top-2 left-2">
-                                                                <Badge className="bg-orange-500 text-white border-0 text-[8px] px-1 py-0 h-3.5">
-                                                                  NEW
-                                                                </Badge>
-                                                              </div>
-                                                            )}
-                                                            {/* Link icon in top right corner - only show if URL exists */}
-                                                            {sourceUrl && (
-                                                              <div className="absolute top-2 right-2">
-                                                                <a 
-                                                                  href={sourceUrl} 
-                                                                  target="_blank" 
-                                                                  rel="noopener noreferrer"
-                                                                  onClick={(e) => e.stopPropagation()}
-                                                                  className="text-blue-500 hover:text-blue-600"
-                                                                  title="View update source"
-                                                                >
-                                                                  <ExternalLink className="w-3.5 h-3.5" />
-                                                                </a>
-                                                              </div>
-                                                            )}
-                                                            
-                                                            <div className={`flex items-start gap-3 pr-6 ${isNewUpdate ? 'mt-4' : ''}`}>
-                                                              <Bell className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isNewUpdate ? 'text-orange-500' : 'text-blue-500'}`} />
-                                                              <div className="flex-1 min-w-0">
-                                                                <div className="mb-1.5">
-                                                                  {updateDate && (() => {
-                                                                    const today = new Date();
-                                                                    today.setHours(0, 0, 0, 0);
-                                                                    const targetDate = new Date(updateDate);
-                                                                    targetDate.setHours(0, 0, 0, 0);
-                                                                    const diffTime = targetDate.getTime() - today.getTime();
-                                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                                                    
-                                                                    let daysText = '';
-                                                                    if (diffDays > 0) {
-                                                                      daysText = `${diffDays}d`;
-                                                                    } else if (diffDays < 0) {
-                                                                      daysText = `${Math.abs(diffDays)}d ago`;
-                                                                    } else {
-                                                                      daysText = 'today';
-                                                                    }
-                                                                    
-                                                                    return (
-                                                                      <span className="text-xs text-gray-500">
-                                                                        {updateDate} <span className="text-[10px] text-gray-400 ml-1">({daysText})</span>
-                                                                      </span>
-                                                                    );
-                                                                  })()}
-                                                      </div>
-                                                          <p className="text-[13px] font-semibold text-[hsl(var(--dashboard-link-color))] leading-snug mb-1.5">
-                                                        {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
-                                                      </p>
-                                                                {description && title && (
-                                                                  <p className="text-xs text-gray-600 leading-relaxed">
-                                                                    {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
-                                                        </p>
-                                                      )}
-                                                    </div>
-                                                            </div>
-                                                          </div>
-                                                        </TooltipTrigger>
-                                                        {impact && (
-                                                          <TooltipContent>
-                                                            <p className="text-xs">{impact.toUpperCase()} Impact</p>
-                                                          </TooltipContent>
-                                                        )}
-                                                      </Tooltip>
-                                                    </TooltipProvider>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      {/* Markings Column */}
-                                      <div>
-                                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
-                                          <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
-                                          <h6 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
-                                            Markings
-                                        </h6>
-                                          <span className="text-xs text-gray-400">({markingsData.length})</span>
-                                        </div>
-                                        <div className="space-y-4">
-                                          {markingsData.map((element, elIdx) => (
-                                            <div key={elIdx} className="space-y-2">
-                                              <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] uppercase tracking-wide mb-2">
-                                                {element.name}
-                                              </h6>
-                                              <div className="space-y-1.5">
-                                                {element.updates.map((update: any, idx: number) => {
-                                                  const title = update?.title || '';
-                                                  const updateDate = update?.update_date || update?.date || '';
-                                                  const description = update?.description || update?.update || '';
-                                                  const impact = update?.impact || '';
-                                                  const sourceUrl = update?.source || update?.source_url || update?.url;
-                                                  
-                                                  // Check if this update is new/changed
-                                                  const updateKey = getUpdateKey(update);
-                                                  const productNewIds = newUpdateIds.get(product.id);
-                                                  const isNewUpdate = productNewIds?.has(updateKey) || false;
-                                                  
-                                                  return (
-                                                    <TooltipProvider key={idx}>
-                                                      <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                          <div className={`relative p-3 border-l-4 cursor-pointer transition-colors ${
-                                                            isNewUpdate ? 'bg-orange-50 hover:bg-orange-100' : 'bg-white hover:bg-gray-50'
-                                                          } ${
-                                                            impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
-                                                            impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
-                                                            impact ? 'border-green-500' : 'border-blue-500'
-                                                          }`}>
-                                                            {/* NEW badge for new/changed updates */}
-                                                            {isNewUpdate && (
-                                                              <div className="absolute top-2 left-2">
-                                                                <Badge className="bg-orange-500 text-white border-0 text-[8px] px-1 py-0 h-3.5">
-                                                                  NEW
-                                                                </Badge>
-                                                              </div>
-                                                            )}
-                                                            {/* Link icon in top right corner - only show if URL exists */}
-                                                            {sourceUrl && (
-                                                              <div className="absolute top-2 right-2">
-                                                                <a 
-                                                                  href={sourceUrl} 
-                                                                  target="_blank" 
-                                                                  rel="noopener noreferrer"
-                                                                  onClick={(e) => e.stopPropagation()}
-                                                                  className="text-blue-500 hover:text-blue-600"
-                                                                  title="View update source"
-                                                                >
-                                                                  <ExternalLink className="w-3.5 h-3.5" />
-                                                                </a>
-                                                              </div>
-                                                            )}
-                                                            
-                                                            <div className={`flex items-start gap-3 pr-6 ${isNewUpdate ? 'mt-4' : ''}`}>
-                                                              <Bell className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isNewUpdate ? 'text-orange-500' : 'text-blue-500'}`} />
-                                                              <div className="flex-1 min-w-0">
-                                                                <div className="mb-1.5">
-                                                                  {updateDate && (() => {
-                                                                    const today = new Date();
-                                                                    today.setHours(0, 0, 0, 0);
-                                                                    const targetDate = new Date(updateDate);
-                                                                    targetDate.setHours(0, 0, 0, 0);
-                                                                    const diffTime = targetDate.getTime() - today.getTime();
-                                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                                                    
-                                                                    let daysText = '';
-                                                                    if (diffDays > 0) {
-                                                                      daysText = `${diffDays}d`;
-                                                                    } else if (diffDays < 0) {
-                                                                      daysText = `${Math.abs(diffDays)}d ago`;
-                                                                    } else {
-                                                                      daysText = 'today';
-                                                                    }
-                                                                    
-                                                                    return (
-                                                                      <span className="text-xs text-gray-500">
-                                                                        {updateDate} <span className="text-[10px] text-gray-400 ml-1">({daysText})</span>
-                                                                      </span>
-                                                                    );
-                                                                  })()}
-                                                      </div>
-                                                          <p className="text-[13px] font-semibold text-[hsl(var(--dashboard-link-color))] leading-snug mb-1.5">
-                                                        {title || description.slice(0, 80) + (description.length > 80 ? '...' : '')}
-                                                      </p>
-                                                                {description && title && (
-                                                                  <p className="text-xs text-gray-600 leading-relaxed">
-                                                                    {String(description).substring(0, 200)}{String(description).length > 200 ? '...' : ''}
-                                                        </p>
-                                                      )}
-                                                    </div>
-                                                            </div>
-                                                          </div>
-                                                        </TooltipTrigger>
-                                                        {impact && (
-                                                          <TooltipContent>
-                                                            <p className="text-xs">{impact.toUpperCase()} Impact</p>
-                                                          </TooltipContent>
-                                                        )}
-                                                      </Tooltip>
-                                                    </TooltipProvider>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-
-                                  // Filter data for Future and Previous tabs
-                                  const futureLegislation = legislation.map(el => ({
-                                    name: el.name,
-                                    updates: filterUpdatesByDate(el.updates, true)
-                                  })).filter(el => el.updates.length > 0);
-
-                                  const futureStandards = standards.map(el => ({
-                                    name: el.name,
-                                    updates: filterUpdatesByDate(el.updates, true)
-                                  })).filter(el => el.updates.length > 0);
-
-                                  const futureMarkings = markings.map(el => ({
-                                    name: el.name,
-                                    updates: filterUpdatesByDate(el.updates, true)
-                                  })).filter(el => el.updates.length > 0);
-
-                                  // Previous updates - sorted descending (newest first)
-                                  const previousLegislation = legislation.map(el => ({
-                                    name: el.name,
-                                    updates: filterUpdatesByDate(el.updates, false).sort((a: any, b: any) => {
+                                  // Render horizontal timeline for a single element's updates
+                                  const renderElementTimeline = (elementName: string, updates: any[], elementType: string) => {
+                                    // Find the index of the first future update (next upcoming)
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    
+                                    // Sort updates chronologically
+                                    const sortedUpdates = [...updates].sort((a: any, b: any) => {
                                       const dateA = a?.update_date || a?.date || '';
                                       const dateB = b?.update_date || b?.date || '';
-                                      return dateB.localeCompare(dateA); // Descending
-                                    })
-                                  })).filter(el => el.updates.length > 0);
+                                      return dateA.localeCompare(dateB);
+                                    });
+                                    
+                                    // Find first future update index
+                                    let firstFutureIdx = sortedUpdates.findIndex((update: any) => {
+                                      const updateDate = update?.update_date || update?.date || '';
+                                      if (!updateDate) return false;
+                                      return new Date(updateDate) >= today;
+                                    });
+                                    
+                                    return (
+                                      <div key={elementName} className="mb-4 bg-white p-3">
+                                        {/* Element header */}
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-2">
+                                            <FileCheck className="w-4 h-4 text-[hsl(var(--dashboard-link-color))]" />
+                                            <h6 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                              {elementName}
+                                            </h6>
+                                            <Badge className={`text-[9px] border-0 px-1.5 py-0 ${
+                                              elementType.includes('legislation') || elementType.includes('regulation') ? 'bg-blue-50 text-blue-700' :
+                                              elementType.includes('standard') ? 'bg-purple-50 text-purple-700' :
+                                              'bg-cyan-50 text-cyan-700'
+                                            }`}>
+                                              {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
+                                               elementType.includes('standard') ? 'Standard' : 'Marking'}
+                                            </Badge>
+                                          </div>
+                                          <span className="text-[10px] text-gray-400">{sortedUpdates.length} update{sortedUpdates.length !== 1 ? 's' : ''}</span>
+                                        </div>
+                                        
+                                        {/* Horizontal scrolling updates */}
+                                        <div 
+                                          className="flex gap-3 overflow-x-auto pb-2 scroll-smooth" 
+                                          style={{ scrollbarWidth: 'thin' }}
+                                          ref={(el) => {
+                                            // Auto-scroll to show the next upcoming update
+                                            if (el && firstFutureIdx > 0) {
+                                              const scrollTarget = firstFutureIdx * 180; // Approximate card width + gap
+                                              el.scrollLeft = Math.max(0, scrollTarget - 100);
+                                            }
+                                          }}
+                                        >
+                                          {sortedUpdates.map((update: any, idx: number) => {
+                                            const title = update?.title || '';
+                                            const updateDate = update?.update_date || update?.date || '';
+                                            const description = update?.description || update?.update || '';
+                                            const impact = update?.impact || '';
+                                            const sourceUrl = update?.source || update?.source_url || update?.url;
+                                            
+                                            // Check if this update is new/changed
+                                            const updateKey = getUpdateKey(update);
+                                            const productNewIds = newUpdateIds.get(product.id);
+                                            const isNewUpdate = productNewIds?.has(updateKey) || false;
+                                            
+                                            // Check if this is the next upcoming update
+                                            const isNextUpcoming = idx === firstFutureIdx;
+                                            const isFuture = updateDate && new Date(updateDate) >= today;
+                                            const isPast = updateDate && new Date(updateDate) < today;
+                                            
+                                            // Calculate days until/ago
+                                            let daysText = '';
+                                            if (updateDate) {
+                                              const targetDate = new Date(updateDate);
+                                              targetDate.setHours(0, 0, 0, 0);
+                                              const diffTime = targetDate.getTime() - today.getTime();
+                                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                              
+                                              if (diffDays > 0) {
+                                                daysText = `in ${diffDays}d`;
+                                              } else if (diffDays < 0) {
+                                                daysText = `${Math.abs(diffDays)}d ago`;
+                                              } else {
+                                                daysText = 'today';
+                                              }
+                                            }
+                                            
+                                            return (
+                                              <TooltipProvider key={idx}>
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <div 
+                                                      className={`flex-shrink-0 w-44 p-2.5 border-l-3 cursor-pointer transition-all ${
+                                                        isNextUpcoming ? 'ring-2 ring-blue-300 ring-offset-1' : ''
+                                                      } ${
+                                                        isNewUpdate ? 'bg-orange-50' : isPast ? 'bg-gray-50' : 'bg-white'
+                                                      } ${
+                                                        impact && impact.toUpperCase() === 'HIGH' ? 'border-l-red-500' :
+                                                        impact && impact.toUpperCase() === 'MEDIUM' ? 'border-l-yellow-500' :
+                                                        impact ? 'border-l-green-500' : 'border-l-blue-400'
+                                                      }`}
+                                                      style={{ borderLeftWidth: '3px' }}
+                                                    >
+                                                      {/* Date header */}
+                                                      <div className="flex items-center justify-between mb-1.5">
+                                                        <span className={`text-[10px] font-mono ${
+                                                          isNextUpcoming ? 'text-blue-600 font-bold' : 
+                                                          isFuture ? 'text-gray-600' : 'text-gray-400'
+                                                        }`}>
+                                                          {updateDate || 'No date'}
+                                                        </span>
+                                                        {isNewUpdate && (
+                                                          <Badge className="bg-orange-500 text-white border-0 text-[7px] px-1 py-0">
+                                                            NEW
+                                                          </Badge>
+                                                        )}
+                                                        {isNextUpcoming && !isNewUpdate && (
+                                                          <Badge className="bg-blue-500 text-white border-0 text-[7px] px-1 py-0">
+                                                            NEXT
+                                                          </Badge>
+                                                        )}
+                                                      </div>
+                                                      
+                                                      {/* Days indicator */}
+                                                      {daysText && (
+                                                        <div className={`text-[9px] mb-1 ${
+                                                          isNextUpcoming ? 'text-blue-500 font-semibold' : 'text-gray-400'
+                                                        }`}>
+                                                          {daysText}
+                                                        </div>
+                                                      )}
+                                                      
+                                                      {/* Title */}
+                                                      <p className={`text-[11px] font-medium leading-tight line-clamp-2 ${
+                                                        isPast ? 'text-gray-500' : 'text-[hsl(var(--dashboard-link-color))]'
+                                                      }`}>
+                                                        {title || description.slice(0, 60) + '...'}
+                                                      </p>
+                                                      
+                                                      {/* Link if available */}
+                                                      {sourceUrl && (
+                                                        <a 
+                                                          href={sourceUrl} 
+                                                          target="_blank" 
+                                                          rel="noopener noreferrer"
+                                                          onClick={(e) => e.stopPropagation()}
+                                                          className="inline-flex items-center gap-0.5 text-[9px] text-blue-500 hover:text-blue-600 mt-1"
+                                                        >
+                                                          <ExternalLink className="w-2.5 h-2.5" />
+                                                          Source
+                                                        </a>
+                                                      )}
+                                                    </div>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent side="bottom" className="max-w-xs">
+                                                    <p className="text-xs font-semibold mb-1">{title}</p>
+                                                    {description && <p className="text-xs text-gray-600">{description.substring(0, 200)}...</p>}
+                                                    {impact && <p className="text-xs mt-1 font-medium">{impact.toUpperCase()} Impact</p>}
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </TooltipProvider>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  };
 
-                                  const previousStandards = standards.map(el => ({
-                                    name: el.name,
-                                    updates: filterUpdatesByDate(el.updates, false).sort((a: any, b: any) => {
-                                      const dateA = a?.update_date || a?.date || '';
-                                      const dateB = b?.update_date || b?.date || '';
-                                      return dateB.localeCompare(dateA); // Descending
-                                    })
-                                  })).filter(el => el.updates.length > 0);
+                                  // Combine all elements with updates for the list view
+                                  const allElementsWithUpdates = [...legislation, ...standards, ...markings];
 
-                                  const previousMarkings = markings.map(el => ({
-                                    name: el.name,
-                                    updates: filterUpdatesByDate(el.updates, false).sort((a: any, b: any) => {
-                                      const dateA = a?.update_date || a?.date || '';
-                                      const dateB = b?.update_date || b?.date || '';
-                                      return dateB.localeCompare(dateA); // Descending
-                                    })
-                                  })).filter(el => el.updates.length > 0);
-
-                                  const futureCount = futureLegislation.reduce((sum, el) => sum + el.updates.length, 0) +
-                                                     futureStandards.reduce((sum, el) => sum + el.updates.length, 0) +
-                                                     futureMarkings.reduce((sum, el) => sum + el.updates.length, 0);
-
-                                  const previousCount = previousLegislation.reduce((sum, el) => sum + el.updates.length, 0) +
-                                                       previousStandards.reduce((sum, el) => sum + el.updates.length, 0) +
-                                                       previousMarkings.reduce((sum, el) => sum + el.updates.length, 0);
+                                  // Sort elements by number of updates (most first)
+                                  allElementsWithUpdates.sort((a, b) => b.updates.length - a.updates.length);
 
                                   return (
-                                    <Tabs defaultValue="future" className="w-full">
-                                      <TabsList className="bg-gray-100 mb-6 h-11 gap-1">
-                                        <TabsTrigger value="future" className="data-[state=active]:bg-white px-6">
-                                          <span className="font-semibold">Future</span>
-                                          <span className="ml-2 text-xs text-gray-500">({futureCount})</span>
-                                        </TabsTrigger>
-                                        <TabsTrigger value="previous" className="data-[state=active]:bg-white px-6">
-                                          <span className="font-semibold">Previous</span>
-                                          <span className="ml-2 text-xs text-gray-500">({previousCount})</span>
-                                        </TabsTrigger>
-                                      </TabsList>
-                                      
-                                      <TabsContent value="future">
-                                        {futureCount > 0 ? (
-                                          renderColumns(futureLegislation, futureStandards, futureMarkings)
-                                        ) : (
-                                          <div className="text-center py-8 text-gray-500 text-sm">
-                                            No future updates available
-                                          </div>
-                                        )}
-                                      </TabsContent>
-                                      
-                                      <TabsContent value="previous">
-                                        {previousCount > 0 ? (
-                                          renderColumns(previousLegislation, previousStandards, previousMarkings)
-                                        ) : (
-                                          <div className="text-center py-8 text-gray-500 text-sm">
-                                            No previous updates available
-                                          </div>
-                                        )}
-                                      </TabsContent>
-                                    </Tabs>
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200">
+                                        <span className="text-xs text-gray-500">
+                                          {allElementsWithUpdates.length} compliance element{allElementsWithUpdates.length !== 1 ? 's' : ''} with updates
+                                        </span>
+                                        <span className="text-[10px] text-gray-400">
+                                          Scroll horizontally to see timeline
+                                        </span>
+                                      </div>
+                                      {allElementsWithUpdates.map((element) => {
+                                        const type = elementTypes[element.name] || '';
+                                        return renderElementTimeline(element.name, element.updates, type);
+                                      })}
+                                    </div>
                                   );
                                 })()
                               ) : (
