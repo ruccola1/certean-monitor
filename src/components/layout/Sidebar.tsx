@@ -8,7 +8,8 @@ import {
   Users,
   FileText,
   Truck,
-  Store
+  Store,
+  Compass
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -26,6 +27,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+  { icon: Compass, label: 'Compliance Navigator', href: '/compliance-navigator' },
   { icon: Package, label: 'Products', href: '/products' },
   { icon: Truck, label: 'Suppliers', href: '/suppliers' },
   { icon: Store, label: 'Retailers', href: '/retailers' },

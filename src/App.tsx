@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
+import ComplianceNavigator from './pages/ComplianceNavigator';
 import Products from './pages/Products';
 import Suppliers from './pages/Suppliers';
 import Retailers from './pages/Retailers';
@@ -46,6 +47,16 @@ function App() {
           }
         />
         <Route path="/dashboard" element={<Navigate to="/" replace />} />
+        <Route
+          path="/compliance-navigator"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ComplianceNavigator />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/products"
           element={
