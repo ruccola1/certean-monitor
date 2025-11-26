@@ -438,6 +438,13 @@ export default function Dashboard() {
     return now.toLocaleString('default', { month: 'short', year: 'numeric' });
   }, []);
 
+  // Full month name for reference line label
+  const currentMonthFullLabel = useMemo(() => {
+    const now = new Date();
+    const month = now.toLocaleString('default', { month: 'long' });
+    return `${month.toUpperCase()} ${now.getFullYear()}`;
+  }, []);
+
   // Custom tooltip for the chart
   const CustomChartTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -747,7 +754,7 @@ export default function Dashboard() {
                   strokeWidth={1.5}
                   strokeDasharray="4 2"
                   label={{ 
-                    value: currentMonthLabel, 
+                    value: currentMonthFullLabel, 
                     position: 'top', 
                     fill: '#374151', 
                     fontSize: 9,
