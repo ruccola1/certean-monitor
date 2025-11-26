@@ -24,9 +24,22 @@ const CACHE_KEYS = {
 const CACHE_TTL = {
   PRODUCTS: 5 * 60 * 1000,  // 5 minutes
   UPDATES: 5 * 60 * 1000,   // 5 minutes
-  SUMMARY: 10 * 60 * 1000,  // 10 minutes
+  SUMMARY: 60 * 60 * 1000,  // 1 hour - AI summary doesn't change often
   CLIENT: 30 * 60 * 1000,   // 30 minutes
 };
+
+// Helper to get cached summary synchronously for initial state
+function getInitialCachedSummary(): string {
+  try {
+    const cached = localStorage.getItem(CACHE_KEYS.SUMMARY);
+    if (!cached) return '';
+    const entry = JSON.parse(cached);
+    // Don't check expiry for initial load - we'll refresh in background
+    return entry.data || '';
+  } catch {
+    return '';
+  }
+}
 
 interface CacheEntry<T> {
   data: T;
@@ -109,8 +122,11 @@ export default function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [complianceUpdates, setComplianceUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<string>("");
-  const [summaryLoading, setSummaryLoading] = useState(true);
+  // Initialize with cached summary immediately to avoid "Analyzing..." flash
+  const initialSummary = getInitialCachedSummary();
+  const [summary, setSummary] = useState<string>(initialSummary);
+  // Only show loading if we don't have a cached summary
+  const [summaryLoading, setSummaryLoading] = useState(!initialSummary);
   const [clientName, setClientName] = useState<string>('Your Company');
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   
@@ -202,8 +218,9 @@ export default function Dashboard() {
         fetchComplianceUpdates(),
       ]);
       
-      // Then fetch AI summary (can use updates data for fallback)
-      await fetchDashboardSummary();
+      // Then fetch AI summary - silent refresh if we already have cached data
+      const hasCachedSummary = !!cachedSummary;
+      await fetchDashboardSummary(hasCachedSummary);
       
       console.log('Dashboard initialization complete');
     };
@@ -267,17 +284,22 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  const fetchDashboardSummary = useCallback(async () => {
+  const fetchDashboardSummary = useCallback(async (silentRefresh: boolean = false) => {
     try {
       if (!user?.sub) return;
       
       const clientId = getClientId(user);
       
+      // If not silent and no summary yet, show loading
+      if (!silentRefresh && !summary) {
+        setSummaryLoading(true);
+      }
+      
       // Timeout after 30 seconds (AI generation can take time)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
       
-      console.log('Fetching dashboard summary for client:', clientId);
+      console.log('Fetching dashboard summary for client:', clientId, silentRefresh ? '(background refresh)' : '');
       const response = await apiService.get(
         `/api/dashboard/summary?client_id=${encodeURIComponent(clientId || '')}`,
         { signal: controller.signal }
@@ -302,32 +324,39 @@ export default function Dashboard() {
         setCache(CACHE_KEYS.SUMMARY, response.data, clientId);
       } else {
         console.log('No summary text in response:', response.data);
-        // Generate a fallback based on compliance updates count
-        const updatesCount = complianceUpdates.length;
-        if (updatesCount > 0) {
-          setSummary(`You have ${updatesCount} compliance updates to review. Check the details below for upcoming regulatory changes.`);
-        } else {
-          setSummary("Your compliance monitoring dashboard is ready. Add products and run compliance analysis to see updates.");
+        // Only set fallback if we don't have existing summary
+        if (!summary) {
+          const updatesCount = complianceUpdates.length;
+          if (updatesCount > 0) {
+            const fallback = `You have ${updatesCount} compliance updates to review. Check the details below for upcoming regulatory changes.`;
+            setSummary(fallback);
+            setCache(CACHE_KEYS.SUMMARY, fallback, clientId);
+          } else {
+            setSummary("Your compliance monitoring dashboard is ready. Add products and run compliance analysis to see updates.");
+          }
         }
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('Dashboard summary request timed out after 30s');
-        // Generate fallback summary based on available data
-        const updatesCount = complianceUpdates.length;
-        if (updatesCount > 0) {
-          setSummary(`You have ${updatesCount} compliance updates across your products. Review the timeline below for details.`);
-        } else {
-          setSummary("Loading compliance insights...");
+        // Only set fallback if we don't have existing summary
+        if (!summary) {
+          const updatesCount = complianceUpdates.length;
+          if (updatesCount > 0) {
+            setSummary(`You have ${updatesCount} compliance updates across your products. Review the timeline below for details.`);
+          }
         }
       } else {
         console.error('Failed to fetch dashboard summary:', error);
-        setSummary("Your compliance monitoring dashboard");
+        // Don't overwrite existing summary on error
+        if (!summary) {
+          setSummary("Your compliance monitoring dashboard");
+        }
       }
     } finally {
       setSummaryLoading(false);
     }
-  }, [user, complianceUpdates]);
+  }, [user, complianceUpdates, summary]);
 
   const handleProductAdded = () => {
     setIsAddProductOpen(false);
