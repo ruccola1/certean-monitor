@@ -58,15 +58,24 @@ export default function ComplianceNavigator() {
 
   // Fetch data
   const fetchData = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('ComplianceNavigator: No user, skipping fetch');
+      return;
+    }
     
     const clientId = getClientId(user);
-    if (!clientId) return;
+    console.log('ComplianceNavigator: clientId =', clientId);
+    if (!clientId) {
+      console.log('ComplianceNavigator: No clientId, skipping fetch');
+      return;
+    }
 
     setLoading(true);
     try {
       // Fetch products for name mapping
+      console.log('ComplianceNavigator: Fetching products...');
       const productsResponse = await apiService.get(`/products?client_id=${clientId}`);
+      console.log('ComplianceNavigator: Products response:', productsResponse.data);
       const products = productsResponse.data?.products || [];
       const pMap = new Map<string, string>();
       products.forEach((p: any) => {
@@ -75,11 +84,17 @@ export default function ComplianceNavigator() {
       setProductsMap(pMap);
 
       // Fetch compliance updates - use the correct endpoint from products routes
+      console.log('ComplianceNavigator: Fetching compliance updates...');
       const updatesResponse = await apiService.get(`/api/products/${clientId}/compliance-updates`);
+      console.log('ComplianceNavigator: Updates response:', updatesResponse.data);
       const updates: ComplianceUpdate[] = updatesResponse.data?.updates || [];
+      console.log('ComplianceNavigator: Parsed updates count:', updates.length);
+      if (updates.length > 0) {
+        console.log('ComplianceNavigator: First update sample:', updates[0]);
+      }
       setComplianceUpdates(updates);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('ComplianceNavigator: Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -89,17 +104,33 @@ export default function ComplianceNavigator() {
     fetchData();
   }, [fetchData]);
 
-  // Generate months from 10 years back to 10 years forward
+  // Generate months dynamically based on data - only months with updates + buffer around current
   const monthColumns = useMemo(() => {
     const months: MonthData[] = [];
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     
-    // Start 10 years back
-    const startYear = currentYear - 10;
-    const endYear = currentYear + 10;
+    // Find the date range from updates
+    let minYear = currentYear - 1;
+    let maxYear = currentYear + 2;
     
-    for (let year = startYear; year <= endYear; year++) {
+    if (complianceUpdates.length > 0) {
+      complianceUpdates.forEach(update => {
+        const dateStr = update.update_date || update.date;
+        if (dateStr) {
+          const date = new Date(dateStr);
+          const year = date.getFullYear();
+          if (year < minYear) minYear = year;
+          if (year > maxYear) maxYear = year;
+        }
+      });
+    }
+    
+    // Add 1 year buffer on each side
+    minYear = Math.min(minYear, currentYear - 1);
+    maxYear = Math.max(maxYear, currentYear + 2);
+    
+    for (let year = minYear; year <= maxYear; year++) {
       for (let month = 0; month < 12; month++) {
         const key = `${year}-${String(month + 1).padStart(2, '0')}`;
         const date = new Date(year, month, 1);
@@ -116,7 +147,7 @@ export default function ComplianceNavigator() {
     }
     
     return months;
-  }, []);
+  }, [complianceUpdates]);
 
   // Group updates by month
   const monthsWithUpdates = useMemo(() => {
@@ -430,6 +461,18 @@ export default function ComplianceNavigator() {
             <div className="flex items-center gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
               <span className="text-lg text-gray-500">Loading compliance timeline...</span>
+            </div>
+          </div>
+        ) : complianceUpdates.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-[hsl(var(--dashboard-link-color))] mb-2">No Compliance Updates</h3>
+              <p className="text-sm text-gray-500 max-w-md">
+                Run Step 4 (Identify Updates) on your products to discover compliance updates.
+                <br />
+                Updates will appear here once identified.
+              </p>
             </div>
           </div>
         ) : (
