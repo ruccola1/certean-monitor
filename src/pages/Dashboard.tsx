@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
 import { getClientId } from '@/utils/clientId';
@@ -11,6 +11,62 @@ import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
 import { Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+
+// Cache utilities for faster dashboard loading
+const CACHE_KEYS = {
+  PRODUCTS: 'dashboard_products_cache',
+  UPDATES: 'dashboard_updates_cache',
+  SUMMARY: 'dashboard_summary_cache',
+  CLIENT: 'dashboard_client_cache',
+};
+
+const CACHE_TTL = {
+  PRODUCTS: 5 * 60 * 1000,  // 5 minutes
+  UPDATES: 5 * 60 * 1000,   // 5 minutes
+  SUMMARY: 10 * 60 * 1000,  // 10 minutes
+  CLIENT: 30 * 60 * 1000,   // 30 minutes
+};
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  clientId: string;
+}
+
+function getCache<T>(key: string, clientId: string | null, ttl: number): T | null {
+  if (!clientId) return null;
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    
+    const entry: CacheEntry<T> = JSON.parse(cached);
+    const isExpired = Date.now() - entry.timestamp > ttl;
+    const isWrongClient = entry.clientId !== clientId;
+    
+    if (isExpired || isWrongClient) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    
+    return entry.data;
+  } catch {
+    return null;
+  }
+}
+
+function setCache<T>(key: string, data: T, clientId: string | null): void {
+  if (!clientId) return;
+  try {
+    const entry: CacheEntry<T> = {
+      data,
+      timestamp: Date.now(),
+      clientId,
+    };
+    localStorage.setItem(key, JSON.stringify(entry));
+  } catch {
+    // localStorage might be full, ignore
+  }
+}
 
 interface Product {
   id: string;
@@ -59,12 +115,22 @@ export default function Dashboard() {
   // Get user's first name
   const userName = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
 
-  // Fetch client name
+  // Fetch client name (with caching)
   useEffect(() => {
     const loadClientInfo = async () => {
+      const clientId = getClientId(user);
+      
+      // Check cache first
+      const cachedClient = getCache<string>(CACHE_KEYS.CLIENT, clientId, CACHE_TTL.CLIENT);
+      if (cachedClient) {
+        setClientName(cachedClient);
+        return;
+      }
+      
       const clientInfo = await fetchClientInfo(user);
       if (clientInfo && clientInfo.client_name) {
         setClientName(clientInfo.client_name);
+        setCache(CACHE_KEYS.CLIENT, clientInfo.client_name, clientId);
       }
     };
 
@@ -73,7 +139,7 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  // Fetch all data in parallel on mount (more efficient)
+  // Load cached data immediately, then refresh in background
   useEffect(() => {
     const initializeDashboard = async () => {
       if (!user?.sub) {
@@ -81,9 +147,35 @@ export default function Dashboard() {
         return;
       }
 
-      console.log('Dashboard initializing - fetching all data in parallel');
+      const clientId = getClientId(user);
+      console.log('Dashboard initializing with caching...');
       
-      // Fetch all data in parallel for faster initial load
+      // STEP 1: Load cached data IMMEDIATELY (instant UI)
+      const cachedProducts = getCache<Product[]>(CACHE_KEYS.PRODUCTS, clientId, CACHE_TTL.PRODUCTS);
+      const cachedUpdates = getCache<any[]>(CACHE_KEYS.UPDATES, clientId, CACHE_TTL.UPDATES);
+      const cachedSummary = getCache<string>(CACHE_KEYS.SUMMARY, clientId, CACHE_TTL.SUMMARY);
+      const cachedClient = getCache<string>(CACHE_KEYS.CLIENT, clientId, CACHE_TTL.CLIENT);
+      
+      if (cachedProducts) {
+        console.log('Using cached products:', cachedProducts.length);
+        setProducts(cachedProducts);
+        setLoading(false);
+      }
+      if (cachedUpdates) {
+        console.log('Using cached updates:', cachedUpdates.length);
+        setComplianceUpdates(cachedUpdates);
+      }
+      if (cachedSummary) {
+        console.log('Using cached summary');
+        setSummary(cachedSummary);
+        setSummaryLoading(false);
+      }
+      if (cachedClient) {
+        setClientName(cachedClient);
+      }
+      
+      // STEP 2: Refresh data in background (stale-while-revalidate)
+      console.log('Refreshing data in background...');
       await Promise.all([
         fetchProducts(),
         fetchComplianceUpdates(),
@@ -122,55 +214,49 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [user?.sub, products, loading]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
-      // Fetch full data to include step2Results for compliance elements breakdown
       const clientId = getClientId(user);
       const response = await productService.getAll(clientId, false);
-      setProducts(response.data || []);
+      const data = response.data || [];
+      setProducts(data);
+      // Cache the results
+      setCache(CACHE_KEYS.PRODUCTS, data, clientId);
     } catch (error) {
       console.error('Failed to fetch products:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  const fetchComplianceUpdates = async () => {
+  const fetchComplianceUpdates = useCallback(async () => {
     try {
       const clientId = getClientId(user);
-      if (!clientId) {
-        console.log('No client ID available, skipping compliance updates fetch');
-        return;
-      }
-      console.log('Fetching compliance updates for client:', clientId);
+      if (!clientId) return;
+      
       const response = await apiService.get(`/api/products/${clientId}/compliance-updates`);
       const updates = response.data?.updates || [];
-      console.log('Received', updates.length, 'compliance updates');
       setComplianceUpdates(updates);
+      // Cache the results
+      setCache(CACHE_KEYS.UPDATES, updates, clientId);
     } catch (error) {
       console.error('Failed to fetch compliance updates:', error);
     }
-  };
+  }, [user]);
 
-  const fetchDashboardSummary = async () => {
+  const fetchDashboardSummary = useCallback(async () => {
     try {
-      if (!user?.sub) {
-        console.log('No user loaded yet, skipping dashboard summary fetch');
-        return;
-      }
-      setSummaryLoading(true);
-      const clientId = getClientId(user);
-      console.log('Fetching dashboard summary for client:', clientId);
+      if (!user?.sub) return;
       
-      // Use API key for authentication
+      const clientId = getClientId(user);
       const apiKey = import.meta.env.VITE_CERTEAN_API_KEY;
       if (apiKey) {
         apiService.setToken(apiKey);
       }
       
-      // Timeout after 5 seconds - don't let summary slow down the page
+      // Timeout after 3 seconds (reduced from 5)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       
       const response = await apiService.get(
         `/api/dashboard/summary?client_id=${encodeURIComponent(clientId || '')}`,
@@ -178,16 +264,16 @@ export default function Dashboard() {
       );
       clearTimeout(timeoutId);
       
-      console.log('Dashboard summary response:', response.data);
-      
       if (response.data?.success && response.data?.data?.text) {
-        setSummary(response.data.data.text);
+        const text = response.data.data.text;
+        setSummary(text);
+        // Cache the results
+        setCache(CACHE_KEYS.SUMMARY, text, clientId);
       } else {
         setSummary("Analyzing your compliance updates...");
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Dashboard summary fetch timed out - continuing without it');
         setSummary("Your compliance monitoring dashboard");
       } else {
         console.error('Failed to fetch dashboard summary:', error);
@@ -196,7 +282,7 @@ export default function Dashboard() {
     } finally {
       setSummaryLoading(false);
     }
-  };
+  }, [user]);
 
   const handleProductAdded = () => {
     setIsAddProductOpen(false);
