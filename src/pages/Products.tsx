@@ -5247,6 +5247,16 @@ export default function Products() {
                                                         {title || description.slice(0, 60) + '...'}
                                                       </p>
                                                       
+                                                      {/* Type badge on card */}
+                                                      <Badge className={`text-[8px] border-0 px-1 py-0 mt-1.5 ${
+                                                        elementType.includes('legislation') || elementType.includes('regulation') ? 'bg-blue-100 text-blue-700' :
+                                                        elementType.includes('standard') ? 'bg-purple-100 text-purple-700' :
+                                                        'bg-cyan-100 text-cyan-700'
+                                                      }`}>
+                                                        {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
+                                                         elementType.includes('standard') ? 'Standard' : 'Marking'}
+                                                      </Badge>
+                                                      
                                                       {/* Link if available */}
                                                       {sourceUrl && (
                                                         <a 
@@ -5262,10 +5272,28 @@ export default function Products() {
                                                       )}
                                                     </div>
                                                   </TooltipTrigger>
-                                                  <TooltipContent side="bottom" className="max-w-xs">
-                                                    <p className="text-xs font-semibold mb-1">{title}</p>
-                                                    {description && <p className="text-xs text-gray-600">{description.substring(0, 200)}...</p>}
-                                                    {impact && <p className="text-xs mt-1 font-medium">{impact.toUpperCase()} Impact</p>}
+                                                  <TooltipContent side="bottom" className="max-w-sm bg-white border border-gray-200 shadow-lg p-3">
+                                                    <p className="text-sm font-bold text-[hsl(var(--dashboard-link-color))] mb-1">{title}</p>
+                                                    {description && <p className="text-xs text-gray-600 mb-2">{description.substring(0, 200)}...</p>}
+                                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                                      <Badge className={`text-[9px] border-0 px-1.5 py-0.5 ${
+                                                        elementType.includes('legislation') || elementType.includes('regulation') ? 'bg-blue-100 text-blue-700' :
+                                                        elementType.includes('standard') ? 'bg-purple-100 text-purple-700' :
+                                                        'bg-cyan-100 text-cyan-700'
+                                                      }`}>
+                                                        {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
+                                                         elementType.includes('standard') ? 'Standard' : 'Marking'}
+                                                      </Badge>
+                                                      {impact && (
+                                                        <Badge className={`text-[9px] border-0 px-1.5 py-0.5 ${
+                                                          impact.toUpperCase() === 'HIGH' ? 'bg-red-100 text-red-700' :
+                                                          impact.toUpperCase() === 'MEDIUM' ? 'bg-amber-100 text-amber-700' :
+                                                          'bg-green-100 text-green-700'
+                                                        }`}>
+                                                          {impact.toUpperCase()} Impact
+                                                        </Badge>
+                                                      )}
+                                                    </div>
                                                   </TooltipContent>
                                                 </Tooltip>
                                               </TooltipProvider>
