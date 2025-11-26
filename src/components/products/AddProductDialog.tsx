@@ -45,7 +45,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'existing' | 'new'>('existing');
-  const [urls, setUrls] = useState('');
+  const [urls, setUrls] = useState<string[]>(['']);
   const [manufacturedIn, setManufacturedIn] = useState('');
   const [markets, setMarkets] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -86,8 +86,8 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
         setType('existing');
       }
       
-      // Join arrays with commas
-      setUrls(initialProduct.urls?.join(', ') || '');
+      // Set arrays
+      setUrls(initialProduct.urls?.length ? initialProduct.urls : ['']);
       setManufacturedIn(initialProduct.manufactured_in?.join(', ') || '');
       setMarkets(initialProduct.markets?.join(', ') || '');
       
@@ -98,7 +98,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setName('');
       setDescription('');
       setType('existing');
-      setUrls('');
+      setUrls(['']);
       setManufacturedIn('');
       setMarkets('');
       setTargetConsumer(true);
@@ -116,6 +116,23 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setError(null);
     }
   }, [open]);
+
+  // URL management functions
+  const addUrlRow = () => {
+    setUrls([...urls, '']);
+  };
+
+  const removeUrlRow = (index: number) => {
+    if (urls.length > 1) {
+      setUrls(urls.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateUrl = (index: number, value: string) => {
+    const updated = [...urls];
+    updated[index] = value;
+    setUrls(updated);
+  };
 
   // Component management functions
   const addComponentRow = () => {
@@ -162,7 +179,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
             name,
             description: fullDescription,
             type: (type === 'new' ? 'future' : type) as 'existing' | 'future' | 'imaginary', // Map 'new' to 'future' to match Product type
-            urls: urls.split(',').map(url => url.trim()).filter(url => url),
+            urls: urls.map(url => url.trim()).filter(url => url),
             manufactured_in: manufacturedIn.split(',').map(country => country.trim().toUpperCase()).filter(country => country),
             markets: markets.split(',').map(market => market.trim().toUpperCase()).filter(market => market),
             target_audience: targetAudience,
@@ -203,7 +220,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setName('');
       setDescription('');
       setType('existing');
-      setUrls('');
+      setUrls(['']);
       setManufacturedIn('');
       setMarkets('');
       setTargetConsumer(true);
@@ -388,18 +405,41 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
               </div>
 
               <div className="space-y-2 col-span-1 md:col-span-2">
-                <Label htmlFor="urls" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
-                  Product URLs
+                <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Product URLs (optional)
                 </Label>
-                <Input
-                  id="urls"
-                  placeholder="e.g., https://example.com/product, https://..."
-                  value={urls}
-                  onChange={(e) => setUrls(e.target.value)}
-                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
-                />
+                <div className="space-y-2">
+                  {urls.map((url, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        placeholder="e.g., https://example.com/product"
+                        value={url}
+                        onChange={(e) => updateUrl(index, e.target.value)}
+                        className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] flex-1"
+                      />
+                      {urls.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeUrlRow(index)}
+                          className="text-gray-400 hover:text-red-600 p-1"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                      {index === urls.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={addUrlRow}
+                          className="text-gray-400 hover:text-[hsl(var(--dashboard-link-color))] p-1"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
                 <p className="text-xs text-gray-500">
-                  Enter comma-separated URLs (optional, helps AI analyze product)
+                  Add URLs to help AI analyze product (website, spec sheets, etc.)
                 </p>
               </div>
 
