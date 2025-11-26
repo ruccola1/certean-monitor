@@ -369,7 +369,7 @@ export default function Dashboard() {
       legislation: number, 
       standard: number, 
       marking: number,
-      titles: string[] 
+      elements: string[] 
     } } = {};
     
     // Single pass through updates
@@ -388,12 +388,14 @@ export default function Dashboard() {
       
       // Lazy initialize month
       if (!monthlyAggregation[yearMonth]) {
-        monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0, titles: [] };
+        monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0, elements: [] };
       }
       
-      // Add title to the list
-      const title = update?.title || update?.regulation || update?.name || 'Untitled Update';
-      monthlyAggregation[yearMonth].titles.push(title);
+      // Add compliance element name to the list
+      const elementName = update?.regulation || update?.designation || update?.element_name || update?.name || 'Unknown Element';
+      if (!monthlyAggregation[yearMonth].elements.includes(elementName)) {
+        monthlyAggregation[yearMonth].elements.push(elementName);
+      }
       
       // Fast type categorization
       const elementType = (update?.element_type || update?.type || '').toLowerCase();
@@ -407,12 +409,12 @@ export default function Dashboard() {
     }
     
     // Generate full range with empty months (only 120 months = 10 years)
-    const result: Array<{date: string, displayDate: string, legislation: number, standard: number, marking: number, total: number, titles: string[]}> = [];
+    const result: Array<{date: string, displayDate: string, legislation: number, standard: number, marking: number, total: number, elements: string[]}> = [];
     
     for (let i = -60; i <= 59; i++) {
       const targetDate = new Date(currentYear, currentMonth + i, 1);
       const yearMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
-      const data = monthlyAggregation[yearMonth] || { legislation: 0, standard: 0, marking: 0, titles: [] };
+      const data = monthlyAggregation[yearMonth] || { legislation: 0, standard: 0, marking: 0, elements: [] };
       
       result.push({
         date: yearMonth,
@@ -421,7 +423,7 @@ export default function Dashboard() {
         standard: data.standard,
         marking: data.marking,
         total: data.legislation + data.standard + data.marking,
-        titles: data.titles
+        elements: data.elements
       });
     }
     
@@ -460,18 +462,18 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        {data.titles && data.titles.length > 0 && (
+        {data.elements && data.elements.length > 0 && (
           <div className="border-t border-gray-100 pt-1.5 mt-1.5">
-            <p className="text-[9px] text-gray-400 mb-0.5 uppercase">Updates:</p>
+            <p className="text-[9px] text-gray-400 mb-0.5 uppercase">Compliance Elements:</p>
             <ul className="leading-tight">
-              {data.titles.slice(0, 8).map((title: string, idx: number) => (
-                <li key={idx} className="text-[9px] text-gray-600 truncate leading-none py-px" title={title}>
-                  {title.length > 35 ? title.substring(0, 35) + '...' : title}
+              {data.elements.slice(0, 8).map((element: string, idx: number) => (
+                <li key={idx} className="text-[9px] text-gray-600 truncate leading-none py-px" title={element}>
+                  {element.length > 35 ? element.substring(0, 35) + '...' : element}
                 </li>
               ))}
-              {data.titles.length > 8 && (
+              {data.elements.length > 8 && (
                 <li className="text-[9px] text-gray-400 italic leading-none py-px">
-                  +{data.titles.length - 8} more
+                  +{data.elements.length - 8} more
                 </li>
               )}
             </ul>
