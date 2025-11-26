@@ -26,7 +26,8 @@ interface NavItem {
   href: string;
 }
 
-const navItems: NavItem[] = [
+// Main navigation items
+const mainNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: Globe, label: 'Compliance Map', href: '/compliance-map' },
   { icon: Compass, label: 'Compliance Navigator', href: '/compliance-navigator' },
@@ -35,6 +36,10 @@ const navItems: NavItem[] = [
   { icon: Store, label: 'Retailers', href: '/retailers' },
   { icon: Bell, label: 'Notifications', href: '/notifications' },
   { icon: FileText, label: 'Logged Events', href: '/logged-events' },
+];
+
+// Bottom navigation items (settings/admin)
+const bottomNavItems: NavItem[] = [
   { icon: CreditCard, label: 'Billing', href: '/billing' },
   { icon: Users, label: 'Team', href: '/team' },
   { icon: Settings, label: 'Settings', href: '/settings' },
@@ -86,11 +91,45 @@ export default function Sidebar({ onMobileClose }: SidebarProps) {
           </svg>
         </Link>
 
-        {/* Navigation */}
+        {/* Main Navigation */}
         <nav className="flex-1 flex flex-col gap-2">
-          {navItems.map((item) => {
+          {mainNavItems.map((item) => {
             const isActive = location.pathname === item.href || 
                            (item.href === '/dashboard' && location.pathname === '/');
+            const Icon = item.icon;
+            
+            return (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>
+                  <Link
+                    to={item.href}
+                    onClick={onMobileClose}
+                    className={cn(
+                      "flex items-center justify-center w-10 h-10 transition-colors",
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                    )}
+                    aria-label={item.label}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{item.label}</p>
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </nav>
+
+        {/* Dotted Divider */}
+        <div className="w-8 border-t border-dotted border-sidebar-foreground/30 my-2" />
+
+        {/* Bottom Navigation */}
+        <nav className="flex flex-col gap-2 pb-2">
+          {bottomNavItems.map((item) => {
+            const isActive = location.pathname === item.href;
             const Icon = item.icon;
             
             return (
