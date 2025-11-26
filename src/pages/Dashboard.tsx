@@ -11,7 +11,7 @@ import { ProductFilterbar } from '@/components/products/ProductFilterbar';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
 import { Loader2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, ReferenceLine } from 'recharts';
 
 // Cache utilities for faster dashboard loading
 const CACHE_KEYS = {
@@ -409,7 +409,8 @@ export default function Dashboard() {
     }
     
     // Generate full range with empty months (only 120 months = 10 years)
-    const result: Array<{date: string, displayDate: string, legislation: number, standard: number, marking: number, total: number, elements: string[]}> = [];
+    const result: Array<{date: string, displayDate: string, legislation: number, standard: number, marking: number, total: number, elements: string[], isCurrent: boolean}> = [];
+    const currentYearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
     
     for (let i = -60; i <= 59; i++) {
       const targetDate = new Date(currentYear, currentMonth + i, 1);
@@ -423,12 +424,19 @@ export default function Dashboard() {
         standard: data.standard,
         marking: data.marking,
         total: data.legislation + data.standard + data.marking,
-        elements: data.elements
+        elements: data.elements,
+        isCurrent: yearMonth === currentYearMonth
       });
     }
     
     return result;
   }, [complianceUpdates]);
+
+  // Get current month label for reference line
+  const currentMonthLabel = useMemo(() => {
+    const now = new Date();
+    return now.toLocaleString('default', { month: 'short', year: 'numeric' });
+  }, []);
 
   // Custom tooltip for the chart
   const CustomChartTooltip = ({ active, payload, label }: any) => {
@@ -733,6 +741,20 @@ export default function Dashboard() {
                   allowDataOverflow={false}
                 />
                 <Tooltip content={<CustomChartTooltip />} />
+                <ReferenceLine 
+                  x={currentMonthLabel} 
+                  stroke="#ef4444" 
+                  strokeWidth={2}
+                  strokeDasharray="4 2"
+                  label={{ 
+                    value: 'Now', 
+                    position: 'top', 
+                    fill: '#ef4444', 
+                    fontSize: 10,
+                    fontFamily: 'Geist Mono, monospace',
+                    fontWeight: 'bold'
+                  }}
+                />
                 <Bar 
                   dataKey="legislation" 
                   stackId="a"
