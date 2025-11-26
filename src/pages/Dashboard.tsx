@@ -595,9 +595,8 @@ export default function Dashboard() {
       
       <div className="p-4 md:p-8">
         <div className="max-w-7xl space-y-4 md:space-y-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome {userName} at {clientName}</h1>
+          <div>
+            <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome {userName} at {clientName}</h1>
             {summaryLoading ? (
               <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
                 Analyzing compliance updates...
@@ -612,19 +611,21 @@ export default function Dashboard() {
               </p>
             )}
           </div>
-          <Button 
-            onClick={() => setIsAddProductOpen(true)}
-            className="bg-slate-600 hover:bg-slate-700 text-white shrink-0"
-          >
-            Add Product
-          </Button>
-        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           <Card className="bg-white border-0 shadow-subtle">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Products</CardTitle>
-              <CardDescription className="text-sm text-gray-500">Total products monitored</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+              <div>
+                <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Products</CardTitle>
+                <CardDescription className="text-sm text-gray-500">Total products monitored</CardDescription>
+              </div>
+              <Button 
+                onClick={() => setIsAddProductOpen(true)}
+                size="sm"
+                className="bg-slate-600 hover:bg-slate-700 text-white text-xs h-7 px-2"
+              >
+                + Add
+              </Button>
             </CardHeader>
             <CardContent>
               {loading ? (
