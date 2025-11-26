@@ -3,6 +3,7 @@ export interface FilterDataItemJson {
   label: string;
   checked?: boolean;
   children?: FilterDataItemJson[];
+  dynamic?: boolean; // If true, children are populated dynamically (e.g., Products list)
 }
 
 export interface FilterDataJson {

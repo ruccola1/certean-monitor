@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { getClientId } from '@/utils/clientId';
 import { Card, CardContent } from '@/components/ui/card';
@@ -458,6 +458,33 @@ export default function Products() {
   const handleClearFilters = () => {
     setActiveFilters(new Set());
   };
+
+  // Create dynamic products list for the filterbar (all products)
+  const dynamicProductsForFilter = useMemo(() => {
+    return products.map(p => ({
+      id: p.id,
+      name: p.name
+    }));
+  }, [products]);
+
+  // Filter products based on active product filters
+  const filteredProducts = useMemo(() => {
+    // Extract product filter IDs from activeFilters (they start with "product_")
+    const activeProductFilterIds = Array.from(activeFilters).filter(id => id.startsWith('product_'));
+    
+    // If no product filters are active, show all products
+    if (activeProductFilterIds.length === 0) {
+      return products;
+    }
+    
+    // Extract actual product IDs from filter IDs (remove "product_" prefix)
+    const selectedProductIds = new Set(
+      activeProductFilterIds.map(filterId => filterId.replace('product_', ''))
+    );
+    
+    // Filter products to only show selected ones
+    return products.filter(product => selectedProductIds.has(product.id));
+  }, [products, activeFilters]);
   
   const previousStatusesRef = useRef<Map<string, {
     step0: string | undefined;
@@ -2450,6 +2477,7 @@ export default function Products() {
         activeFilters={activeFilters}
         onToggleFilter={handleToggleFilter}
         onClearFilters={handleClearFilters}
+        dynamicProducts={dynamicProductsForFilter}
       />
       
       <div className="p-4 md:p-8">
@@ -2492,9 +2520,28 @@ export default function Products() {
               </Button>
             </CardContent>
           </Card>
+        ) : filteredProducts.length === 0 ? (
+          <Card className="bg-white border-0">
+            <CardContent className="p-12 text-center">
+              <p className="text-gray-500 mb-4">No products match the selected filters</p>
+              <Button
+                onClick={handleClearFilters}
+                variant="outline"
+                className="border-0 bg-gray-100 hover:bg-gray-200"
+              >
+                Clear Filters
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
           <div className="space-y-4">
-            {products.map((product) => {
+            {/* Show filter message if products are filtered */}
+            {activeFilters.size > 0 && filteredProducts.length < products.length && (
+              <div className="text-sm text-gray-500 mb-2">
+                Showing {filteredProducts.length} of {products.length} products
+              </div>
+            )}
+            {filteredProducts.map((product) => {
               const step0Status = product.step0Status || 'pending';
               const step1Status = product.step1Status || 'pending';
               const step2Status = product.step2Status || 'pending';

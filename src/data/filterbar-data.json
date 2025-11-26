@@ -319,6 +319,12 @@
     "type": "accordion",
     "items": [
       {
+        "id": "inv_products",
+        "label": "Products",
+        "children": [],
+        "dynamic": true
+      },
+      {
         "id": "inv_material",
         "label": "Material",
         "children": [

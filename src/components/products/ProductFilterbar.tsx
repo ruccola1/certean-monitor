@@ -293,13 +293,20 @@ interface FilterConfig {
   dataKey: keyof AllFilterDataJson;
 }
 
+// Dynamic product for the Products filter
+export interface DynamicProduct {
+  id: string;
+  name: string;
+}
+
 interface ProductFilterbarProps {
   activeFilters: Set<string>;
   onToggleFilter: (filterId: string, isChecked: boolean) => void;
   onClearFilters: () => void;
+  dynamicProducts?: DynamicProduct[]; // Optional list of products to show in Inventory > Products
 }
 
-export function ProductFilterbar({ activeFilters, onToggleFilter, onClearFilters }: ProductFilterbarProps) {
+export function ProductFilterbar({ activeFilters, onToggleFilter, onClearFilters, dynamicProducts = [] }: ProductFilterbarProps) {
   const filters: FilterConfig[] = [
     { label: 'Markets', icon: MapPin, dataKey: 'markets' },
     { label: 'Inventory', icon: Package, dataKey: 'inventory' },
@@ -309,16 +316,41 @@ export function ProductFilterbar({ activeFilters, onToggleFilter, onClearFilters
 
   const hasActiveFilters = activeFilters.size > 0;
 
+  // Function to inject dynamic products into the inventory filter config
+  const getFilterConfigWithDynamicData = (filterConfig: FilterDataJson, dataKey: string): FilterDataJson => {
+    if (dataKey !== 'inventory' || dynamicProducts.length === 0) {
+      return filterConfig;
+    }
+
+    // Deep clone the config to avoid mutating the original
+    const clonedConfig: FilterDataJson = JSON.parse(JSON.stringify(filterConfig));
+    
+    // Find the Products item and inject dynamic children
+    const productsItem = clonedConfig.items.find(item => item.id === 'inv_products');
+    if (productsItem) {
+      productsItem.children = dynamicProducts.map(product => ({
+        id: `product_${product.id}`,
+        label: product.name,
+        checked: false
+      }));
+    }
+    
+    return clonedConfig;
+  };
+
   return (
     <div className="w-full bg-[hsl(var(--dashboard-link-color))] px-4 py-0 h-12 flex items-center">
       <div className="flex items-center h-full w-full">
         {filters.map((filter, index) => {
-          const filterConfigData = typedFilterDataJson[filter.dataKey] as FilterDataJson;
+          const baseFilterConfig = typedFilterDataJson[filter.dataKey] as FilterDataJson;
           
-          if (!filterConfigData) {
+          if (!baseFilterConfig) {
             console.warn(`Filter data for key "${filter.dataKey}" not found.`);
             return null;
           }
+          
+          // Inject dynamic data if needed
+          const filterConfigData = getFilterConfigWithDynamicData(baseFilterConfig, filter.dataKey);
           
           return (
             <div key={filter.label} className="flex items-center h-full flex-1 max-w-[310px]">
