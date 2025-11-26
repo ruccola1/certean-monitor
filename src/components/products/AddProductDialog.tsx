@@ -25,6 +25,7 @@ interface AddProductDialogProps {
     description?: string;
     type?: 'existing' | 'future' | 'imaginary';
     urls?: string[];
+    manufactured_in?: string[];
     markets?: string[];
     uploaded_files?: string[];
     uploaded_images?: string[];
@@ -45,6 +46,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'existing' | 'new'>('existing');
   const [urls, setUrls] = useState('');
+  const [manufacturedIn, setManufacturedIn] = useState('');
   const [markets, setMarkets] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
@@ -86,6 +88,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       
       // Join arrays with commas
       setUrls(initialProduct.urls?.join(', ') || '');
+      setManufacturedIn(initialProduct.manufactured_in?.join(', ') || '');
       setMarkets(initialProduct.markets?.join(', ') || '');
       
       // Note: We can't re-upload files/images, so we leave those empty
@@ -96,6 +99,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setDescription('');
       setType('existing');
       setUrls('');
+      setManufacturedIn('');
       setMarkets('');
       setTargetConsumer(true);
       setTargetBusiness(false);
@@ -159,6 +163,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
             description: fullDescription,
             type: (type === 'new' ? 'future' : type) as 'existing' | 'future' | 'imaginary', // Map 'new' to 'future' to match Product type
             urls: urls.split(',').map(url => url.trim()).filter(url => url),
+            manufactured_in: manufacturedIn.split(',').map(country => country.trim().toUpperCase()).filter(country => country),
             markets: markets.split(',').map(market => market.trim().toUpperCase()).filter(market => market),
             target_audience: targetAudience,
             uploaded_files: uploadedFiles.map(f => f.name),
@@ -199,6 +204,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setDescription('');
       setType('existing');
       setUrls('');
+      setManufacturedIn('');
       setMarkets('');
       setTargetConsumer(true);
       setTargetBusiness(false);
@@ -319,6 +325,23 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="manufactured_in" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Country of Manufacture *
+                </Label>
+                <Input
+                  id="manufactured_in"
+                  placeholder="e.g., CN, DE, US (comma-separated)"
+                  value={manufacturedIn}
+                  onChange={(e) => setManufacturedIn(e.target.value)}
+                  required
+                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
+                />
+                <p className="text-xs text-gray-500">
+                  Where the product is manufactured
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="markets" className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
                   Target Markets *
                 </Label>
@@ -331,7 +354,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
                   className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))]"
                 />
                 <p className="text-xs text-gray-500">
-                  Enter comma-separated market codes
+                  Where the product will be sold
                 </p>
               </div>
 
@@ -524,7 +547,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !name || !description || !markets || (!targetConsumer && !targetBusiness)}
+              disabled={isSubmitting || !name || !description || !manufacturedIn || !markets || (!targetConsumer && !targetBusiness)}
               className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white"
             >
               {isSubmitting ? 'Adding...' : initialProduct ? 'Create Product' : 'Add Product'}

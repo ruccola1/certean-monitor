@@ -4,7 +4,8 @@ export interface Product {
   description: string;
   type: 'existing' | 'future' | 'imaginary';
   urls: string[];
-  markets: string[];
+  manufactured_in?: string[];  // Countries where product is manufactured
+  markets: string[];           // Target markets where product will be sold
   target_audience?: ('consumer' | 'business')[];
   status: ProductStatus;
   step0Status: StepStatus;

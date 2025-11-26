@@ -189,6 +189,7 @@ interface ProductDetails {
   name: string;
   description: string;
   type: string;
+  manufactured_in?: string[];
   markets: string[];
   target_audience?: ('consumer' | 'business')[];
   status: string;
@@ -2662,8 +2663,16 @@ export default function Products() {
                             {product.type ? product.type.charAt(0).toUpperCase() + product.type.slice(1) : ''}
                           </span>
                         </div>
+                        {product.manufactured_in && product.manufactured_in.length > 0 && (
+                          <div>
+                            <span className="text-gray-500">Manufactured in:</span>
+                            <span className="ml-2 text-[hsl(var(--dashboard-link-color))] font-medium">
+                              {product.manufactured_in.join(', ')}
+                            </span>
+                          </div>
+                        )}
                         <div>
-                          <span className="text-gray-500">Markets:</span>
+                          <span className="text-gray-500">Target Markets:</span>
                           <span className="ml-2 text-[hsl(var(--dashboard-link-color))] font-medium">
                             {product.markets.join(', ')}
                           </span>
