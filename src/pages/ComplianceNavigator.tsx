@@ -74,7 +74,7 @@ export default function ComplianceNavigator() {
     try {
       // Fetch products for name mapping
       console.log('ComplianceNavigator: Fetching products...');
-      const productsResponse = await apiService.get(`/products?client_id=${clientId}`);
+      const productsResponse = await apiService.get(`/api/products?client_id=${clientId}`);
       console.log('ComplianceNavigator: Products response:', productsResponse.data);
       const products = productsResponse.data?.products || [];
       const pMap = new Map<string, string>();
