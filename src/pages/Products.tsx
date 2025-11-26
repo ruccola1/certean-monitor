@@ -2684,7 +2684,7 @@ export default function Products() {
                       <div className="mt-4 border-t border-gray-100 pt-4 space-y-4">
                         <div className="grid grid-cols-3 gap-1 md:gap-3 pb-2 w-full">
                           {/* Step 0 summary */}
-                          <div className="bg-white border border-gray-100 p-2 md:p-4 h-full overflow-hidden">
+                          <div className="bg-slate-50/70 border-0 p-2 md:p-4 h-full overflow-hidden">
                             <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
                               <div className="min-w-0 w-full">
                                 <p className="text-[9px] md:text-[10px] font-semibold uppercase text-gray-500 truncate">
@@ -2871,7 +2871,7 @@ export default function Products() {
                           </div>
 
                           {/* Combined Compliance Elements & Updates */}
-                          <div className="bg-white border border-gray-100 p-2 md:p-4 h-full overflow-hidden">
+                          <div className="bg-slate-50/70 border-0 p-2 md:p-4 h-full overflow-hidden">
                             <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
                               <div className="min-w-0 w-full">
                                 <div className="flex items-center gap-2">
@@ -3048,7 +3048,7 @@ export default function Products() {
                           </div>
 
                           {/* Requirements (Pro Feature) */}
-                          <div className="bg-white border border-gray-100 p-2 md:p-4 h-full overflow-hidden">
+                          <div className="bg-slate-100/80 border-0 p-2 md:p-4 h-full overflow-hidden opacity-75">
                             <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
                               <div className="min-w-0 w-full">
                                 <p className="text-[9px] md:text-[10px] font-semibold uppercase text-gray-500 truncate">
