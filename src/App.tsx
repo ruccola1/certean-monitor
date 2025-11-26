@@ -3,9 +3,12 @@ import { useAuth0 } from '@auth0/auth0-react';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
+import Suppliers from './pages/Suppliers';
+import Retailers from './pages/Retailers';
 import Pricing from './pages/Pricing';
 import Billing from './pages/Billing';
 import Settings from './pages/Settings';
+import LoggedEvents from './pages/LoggedEvents';
 import Login from './pages/Login';
 import AuthCallback from './components/auth/AuthCallback';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -49,6 +52,26 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <Products />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/suppliers"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Suppliers />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/retailers"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Retailers />
               </AppLayout>
             </ProtectedRoute>
           }
@@ -105,6 +128,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <Settings />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/logged-events"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <LoggedEvents />
               </AppLayout>
             </ProtectedRoute>
           }

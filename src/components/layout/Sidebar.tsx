@@ -5,7 +5,10 @@ import {
   Bell, 
   Settings,
   CreditCard,
-  Users
+  Users,
+  FileText,
+  Truck,
+  Store
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -24,7 +27,10 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: Package, label: 'Products', href: '/products' },
+  { icon: Truck, label: 'Suppliers', href: '/suppliers' },
+  { icon: Store, label: 'Retailers', href: '/retailers' },
   { icon: Bell, label: 'Notifications', href: '/notifications' },
+  { icon: FileText, label: 'Logged Events', href: '/logged-events' },
   { icon: CreditCard, label: 'Billing', href: '/billing' },
   { icon: Users, label: 'Team', href: '/team' },
   { icon: Settings, label: 'Settings', href: '/settings' },
@@ -39,7 +45,7 @@ export default function Sidebar({ onMobileClose }: SidebarProps) {
 
   return (
     <TooltipProvider>
-      <aside className="h-screen w-16 border-r border-border bg-sidebar-gradient flex flex-col items-center py-4">
+      <aside className="h-screen w-16 bg-sidebar-gradient flex flex-col items-center py-4">
         {/* Logo */}
         <Link 
           to="/" 

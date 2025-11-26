@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
 import { getClientId } from '@/utils/clientId';
+import { fetchClientInfo } from '@/services/clientService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,15 @@ interface Product {
   step0Status: string;
   step1Status: string;
   step2Status: string;
+  metrics?: {
+    componentsCount?: number;
+    complianceElementsCount?: number;
+    complianceUpdatesCount?: number;
+  };
+  step0Results?: {
+    quality_score?: number;
+    is_sufficient?: boolean;
+  };
   step2Results?: {
     compliance_elements: Array<{
       designation?: string;
@@ -44,34 +54,79 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<string>("");
   const [summaryLoading, setSummaryLoading] = useState(true);
+  const [clientName, setClientName] = useState<string>('Your Company');
+  
+  // Get user's first name
+  const userName = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
 
+  // Fetch client name
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    const loadClientInfo = async () => {
+      const clientInfo = await fetchClientInfo(user);
+      if (clientInfo && clientInfo.client_name) {
+        setClientName(clientInfo.client_name);
+      }
+    };
 
-  useEffect(() => {
-    console.log('🚀🚀🚀 DASHBOARD MOUNTED - FORCING FETCH');
-    // FORCE FETCH IMMEDIATELY
-    fetchComplianceUpdates();
-    fetchDashboardSummary();
-  }, []);
+    if (user) {
+      loadClientInfo();
+    }
+  }, [user]);
 
-  // Smart polling: Only refresh every 60 seconds (Dashboard doesn't need real-time updates)
+  // Fetch all data in parallel on mount (more efficient)
   useEffect(() => {
+    const initializeDashboard = async () => {
+      if (!user?.sub) {
+        console.log('User not loaded yet, waiting...');
+        return;
+      }
+
+      console.log('Dashboard initializing - fetching all data in parallel');
+      
+      // Fetch all data in parallel for faster initial load
+      await Promise.all([
+        fetchProducts(),
+        fetchComplianceUpdates(),
+        fetchDashboardSummary(),
+      ]);
+      
+      console.log('Dashboard initialization complete');
+    };
+
+    initializeDashboard();
+  }, [user?.sub]);
+
+  // Optimized polling: Only refresh if there are processing products
+  useEffect(() => {
+    // Don't start polling until we have initial data
+    if (!user?.sub || loading) return;
+
     const interval = setInterval(() => {
-      fetchProducts();
-      const clientId = getClientId(user);
-      if (clientId) {
+      // Only poll if there are products in processing state
+      const hasProcessingProducts = products.some(p => 
+        p.status === 'processing' ||
+        p.step0Status === 'running' ||
+        p.step1Status === 'running' ||
+        p.step2Status === 'running'
+      );
+
+      if (hasProcessingProducts) {
+        console.log('Polling: Processing products detected, refreshing...');
+        fetchProducts();
         fetchComplianceUpdates();
+      } else {
+        console.log('Polling: All products idle, skipping refresh');
       }
     }, 60000); // 60 seconds
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user?.sub, products, loading]);
 
   const fetchProducts = async () => {
     try {
-      const response = await productService.getAll();
+      // Fetch full data to include step2Results for compliance elements breakdown
+      const clientId = getClientId(user);
+      const response = await productService.getAll(clientId, false);
       setProducts(response.data || []);
     } catch (error) {
       console.error('Failed to fetch products:', error);
@@ -82,18 +137,18 @@ export default function Dashboard() {
 
   const fetchComplianceUpdates = async () => {
     try {
-      // HARDCODE client_id for testing
-      const clientId = '69220097bca3a5ba1420fee58';
-      console.log('🔍🔍🔍 FETCHING compliance updates for client:', clientId);
+      const clientId = getClientId(user);
+      if (!clientId) {
+        console.log('No client ID available, skipping compliance updates fetch');
+        return;
+      }
+      console.log('Fetching compliance updates for client:', clientId);
       const response = await apiService.get(`/api/products/${clientId}/compliance-updates`);
-      console.log('✅✅✅ Compliance updates response:', response.data);
-      console.log('📦📦📦 Updates array length:', response.data?.updates?.length || 0);
       const updates = response.data?.updates || [];
-      console.log('🎯🎯🎯 Setting complianceUpdates state to array with length:', updates.length);
+      console.log('Received', updates.length, 'compliance updates');
       setComplianceUpdates(updates);
-      console.log('✅✅✅ State set complete - complianceUpdates should now have', updates.length, 'items');
     } catch (error) {
-      console.error('❌❌❌ Failed to fetch compliance updates:', error);
+      console.error('Failed to fetch compliance updates:', error);
     }
   };
 
@@ -113,7 +168,16 @@ export default function Dashboard() {
         apiService.setToken(apiKey);
       }
       
-      const response = await apiService.get(`/api/dashboard/summary?client_id=${encodeURIComponent(clientId)}`);
+      // Timeout after 5 seconds - don't let summary slow down the page
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await apiService.get(
+        `/api/dashboard/summary?client_id=${encodeURIComponent(clientId || '')}`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeoutId);
+      
       console.log('Dashboard summary response:', response.data);
       
       if (response.data?.success && response.data?.data?.text) {
@@ -122,8 +186,13 @@ export default function Dashboard() {
         setSummary("Analyzing your compliance updates...");
       }
     } catch (error) {
-      console.error('Failed to fetch dashboard summary:', error);
-      setSummary("Unable to generate summary. Please check your products' compliance updates.");
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Dashboard summary fetch timed out - continuing without it');
+        setSummary("Your compliance monitoring dashboard");
+      } else {
+        console.error('Failed to fetch dashboard summary:', error);
+        setSummary("Your compliance monitoring dashboard");
+      }
     } finally {
       setSummaryLoading(false);
     }
@@ -142,116 +211,159 @@ export default function Dashboard() {
     error: products.filter(p => p.status === 'error').length,
   };
 
-  // Aggregate compliance updates by year-month from shared database (10-year range)
-  const chartData = useMemo(() => {
-    // Early return if no updates
-    if (!complianceUpdates || complianceUpdates.length === 0) {
-      return [];
-    }
+  // Calculate average comprehensiveness score
+  const productsWithScore = products.filter(p => 
+    p.step0Results?.quality_score !== undefined && p.step0Results.quality_score > 0
+  );
+  const averageComprehensiveness = productsWithScore.length > 0
+    ? Math.round(productsWithScore.reduce((sum, p) => sum + (p.step0Results?.quality_score || 0), 0) / productsWithScore.length)
+    : 0;
 
-    // Generate 120-month range (60 before current, current, 59 after) = 10 years
+  // Aggregate compliance updates by year-month - OPTIMIZED for speed
+  const chartData = useMemo(() => {
+    if (!complianceUpdates || complianceUpdates.length === 0) return [];
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
     
+    // Calculate date boundaries once (5 years before, 5 years after = more focused range)
+    const minDate = new Date(currentYear - 5, currentMonth, 1);
+    const maxDate = new Date(currentYear + 5, currentMonth, 28);
+    const minTime = minDate.getTime();
+    const maxTime = maxDate.getTime();
+    
+    // Aggregate only months that have data (lazy initialization)
     const monthlyAggregation: { [key: string]: { legislation: number, standard: number, marking: number } } = {};
     
-    // Only initialize months that have data (optimize memory)
-    // We'll add empty months later only in the display range
+    // Single pass through updates
+    for (let i = 0; i < complianceUpdates.length; i++) {
+      const update = complianceUpdates[i];
+      const updateDate = update?.update_date || update?.date;
+      if (!updateDate) continue;
+      
+      const date = new Date(updateDate);
+      const dateTime = date.getTime();
+      
+      // Skip if outside range
+      if (dateTime < minTime || dateTime > maxTime) continue;
+      
+      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Lazy initialize month
+      if (!monthlyAggregation[yearMonth]) {
+        monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0 };
+      }
+      
+      // Fast type categorization
+      const elementType = (update?.element_type || update?.type || '').toLowerCase();
+      if (elementType.includes('standard')) {
+        monthlyAggregation[yearMonth].standard++;
+      } else if (elementType.includes('marking')) {
+        monthlyAggregation[yearMonth].marking++;
+      } else {
+        monthlyAggregation[yearMonth].legislation++;
+      }
+    }
+    
+    // Generate full range with empty months (only 120 months = 10 years)
+    const result: Array<{date: string, displayDate: string, legislation: number, standard: number, marking: number, total: number}> = [];
+    
     for (let i = -60; i <= 59; i++) {
       const targetDate = new Date(currentYear, currentMonth + i, 1);
       const yearMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
-      monthlyAggregation[yearMonth] = { legislation: 0, standard: 0, marking: 0 };
+      const data = monthlyAggregation[yearMonth] || { legislation: 0, standard: 0, marking: 0 };
+      
+      result.push({
+        date: yearMonth,
+        displayDate: targetDate.toLocaleString('default', { month: 'short', year: 'numeric' }),
+        legislation: data.legislation,
+        standard: data.standard,
+        marking: data.marking,
+        total: data.legislation + data.standard + data.marking
+      });
     }
     
-    // Aggregate actual data from compliance updates
-    // The backend now provides element_type (legislation/standard/marking) via compliance_element_id lookup
-    complianceUpdates.forEach((update: any) => {
-      const updateDate = update?.update_date || update?.date;
-      if (!updateDate) return;
-      
-      try {
-        const date = new Date(updateDate);
-        const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        
-        // Only include if within our 120-month range
-        if (monthlyAggregation[yearMonth]) {
-          // Use element_type from backend (already resolved via compliance_element_id)
-          const elementType = (update?.element_type || update?.type || 'legislation').toLowerCase();
-          
-          // Categorize by compliance element type
-          if (elementType.includes('standard') || elementType === 'standard') {
-            monthlyAggregation[yearMonth].standard++;
-          } else if (elementType.includes('marking') || elementType === 'marking') {
-            monthlyAggregation[yearMonth].marking++;
-          } else {
-            monthlyAggregation[yearMonth].legislation++;
-          }
-        }
-      } catch {
-        console.error('Failed to parse date:', updateDate);
-      }
-    });
-    
-    // DEBUG: Log final aggregation summary
-    const totalLegislation = Object.values(monthlyAggregation).reduce((sum, month) => sum + month.legislation, 0);
-    const totalStandards = Object.values(monthlyAggregation).reduce((sum, month) => sum + month.standard, 0);
-    const totalMarkings = Object.values(monthlyAggregation).reduce((sum, month) => sum + month.marking, 0);
-    console.log('Chart Data Summary:', {
-      totalLegislation,
-      totalStandards,
-      totalMarkings,
-      totalUpdates: complianceUpdates.length
-    });
-    
-    // Convert to array and sort by date
-    return Object.keys(monthlyAggregation)
-      .sort()
-      .map(yearMonth => {
-        const [year, month] = yearMonth.split('-');
-        const date = new Date(parseInt(year), parseInt(month) - 1);
-        const monthName = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-        
-        return {
-          date: yearMonth,
-          displayDate: monthName,
-          legislation: monthlyAggregation[yearMonth].legislation,
-          standard: monthlyAggregation[yearMonth].standard,
-          marking: monthlyAggregation[yearMonth].marking,
-          total: monthlyAggregation[yearMonth].legislation + monthlyAggregation[yearMonth].standard + monthlyAggregation[yearMonth].marking
-        };
-      });
+    return result;
   }, [complianceUpdates]);
 
-  // Calculate total compliance updates
-  const totalComplianceUpdates = chartData.reduce((sum, item) => sum + item.total, 0);
-  console.log('🔢 FINAL totalComplianceUpdates for display:', totalComplianceUpdates);
-  console.log('📊 chartData length:', chartData.length);
-  console.log('📦 complianceUpdates length:', complianceUpdates.length);
+  // Calculate FUTURE and PAST compliance updates - OPTIMIZED
+  const { futureComplianceUpdates, pastComplianceUpdates } = useMemo(() => {
+    if (!complianceUpdates || complianceUpdates.length === 0) {
+      return { futureComplianceUpdates: 0, pastComplianceUpdates: 0 };
+    }
+    
+    const nowTime = new Date().setHours(0, 0, 0, 0);
+    let futureCount = 0;
+    let pastCount = 0;
+    
+    for (let i = 0; i < complianceUpdates.length; i++) {
+      const update = complianceUpdates[i];
+      const updateDate = update?.update_date || update?.date;
+      if (updateDate) {
+        if (new Date(updateDate).getTime() >= nowTime) {
+          futureCount++;
+        } else {
+          pastCount++;
+        }
+      }
+    }
+    
+    return { futureComplianceUpdates: futureCount, pastComplianceUpdates: pastCount };
+  }, [complianceUpdates]);
   
-  // Calculate total compliance elements from Step 2
+  // Calculate total compliance elements from pre-computed metrics (much faster)
   const totalComplianceElements = products.reduce((sum, product) => {
-    return sum + (product.step2Results?.compliance_elements?.length || 0);
+    return sum + (product.metrics?.complianceElementsCount || 0);
   }, 0);
+
+  // Calculate compliance elements breakdown by type
+  const complianceElementsBreakdown = useMemo(() => {
+    const breakdown = { legislation: 0, standard: 0, marking: 0 };
+    
+    for (const product of products) {
+      const elements = product.step2Results?.compliance_elements || [];
+      for (const element of elements) {
+        const elementType = (element?.element_type || element?.type || '').toLowerCase();
+        if (elementType.includes('standard')) {
+          breakdown.standard++;
+        } else if (elementType.includes('marking')) {
+          breakdown.marking++;
+        } else {
+          breakdown.legislation++;
+        }
+      }
+    }
+    
+    return breakdown;
+  }, [products]);
 
   return (
     <div className="min-h-screen bg-dashboard-view-background p-4 md:p-8">
       <div className="max-w-7xl space-y-4 md:space-y-8">
-        <div>
-          <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome Nicolas at Supercase</h1>
-          {summaryLoading ? (
-            <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
-              Analyzing compliance updates...
-            </p>
-          ) : summary ? (
-            <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2 whitespace-pre-line">
-              {summary}
-            </p>
-          ) : (
-            <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
-              Your compliance monitoring dashboard
-            </p>
-          )}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-lg md:text-xl font-bold text-[hsl(var(--dashboard-link-color))]">Welcome {userName} at {clientName}</h1>
+            {summaryLoading ? (
+              <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
+                Analyzing compliance updates...
+              </p>
+            ) : summary ? (
+              <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2 whitespace-pre-line">
+                {summary}
+              </p>
+            ) : (
+              <p className="text-sm md:text-[15px] text-[hsl(var(--dashboard-link-color))] mt-1 md:mt-2">
+                Your compliance monitoring dashboard
+              </p>
+            )}
+          </div>
+          <Button 
+            onClick={() => setIsAddProductOpen(true)}
+            className="bg-slate-600 hover:bg-slate-700 text-white shrink-0"
+          >
+            Add Product
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -265,7 +377,21 @@ export default function Dashboard() {
                 <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
               ) : (
                 <>
-                  <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">{products.length}</div>
+                  <div className="flex items-baseline gap-4">
+                    <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">{products.length}</div>
+                    {productsWithScore.length > 0 && (
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-xl font-bold font-mono ${
+                          averageComprehensiveness >= 70 ? 'text-green-600' :
+                          averageComprehensiveness >= 40 ? 'text-yellow-600' :
+                          'text-red-600'
+                        }`}>
+                          {averageComprehensiveness}%
+                        </span>
+                        <span className="text-xs text-gray-500">avg. data comprehensiveness</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="mt-3 space-y-1">
                     {statusCounts.completed > 0 && (
                       <Badge className="bg-green-50 text-green-700 border-0 mr-1">
@@ -306,14 +432,30 @@ export default function Dashboard() {
                 <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
               ) : (
                 <>
-                  <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">{totalComplianceElements}</div>
+                  <div className="flex items-baseline gap-4">
+                    <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">{totalComplianceElements}</div>
+                    {totalComplianceElements > 0 && (
+                      <div className="flex items-baseline gap-3">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xl font-bold font-mono text-blue-600">{complianceElementsBreakdown.legislation}</span>
+                          <span className="text-xs text-gray-500">legislation</span>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xl font-bold font-mono text-purple-600">{complianceElementsBreakdown.standard}</span>
+                          <span className="text-xs text-gray-500">standards</span>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xl font-bold font-mono text-cyan-600">{complianceElementsBreakdown.marking}</span>
+                          <span className="text-xs text-gray-500">markings</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <div className="mt-3 space-y-1">
                     {totalComplianceElements > 0 ? (
-                      <Badge className="bg-blue-100 text-blue-700 border-0">
-                        From {products.filter(p => p.step2Results?.compliance_elements).length} products
-                      </Badge>
+                      <span className="text-xs text-gray-500">From {products.filter(p => (p.metrics?.complianceElementsCount || 0) > 0).length} products</span>
                     ) : (
-                      <Badge variant="secondary" className="border-0">No elements yet</Badge>
+                      <span className="text-xs text-gray-500">No elements yet</span>
                     )}
                   </div>
                 </>
@@ -323,22 +465,28 @@ export default function Dashboard() {
 
           <Card className="bg-white border-0">
             <CardHeader>
-              <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Compliance Updates</CardTitle>
-              <CardDescription className="text-sm text-gray-500">Total updates tracked</CardDescription>
+              <CardTitle className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">Upcoming Updates</CardTitle>
+              <CardDescription className="text-sm text-gray-500">Future compliance changes</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
               ) : (
                 <>
-                  <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">{totalComplianceUpdates}</div>
+                  <div className="flex items-baseline gap-4">
+                    <div className="text-3xl font-bold text-[hsl(var(--dashboard-link-color))] font-mono">{futureComplianceUpdates}</div>
+                    {pastComplianceUpdates > 0 && (
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold font-mono text-gray-400">{pastComplianceUpdates}</span>
+                        <span className="text-xs text-gray-500">previous</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="mt-3 space-y-1">
-                    {totalComplianceUpdates > 0 ? (
-                      <Badge className="bg-orange-100 text-orange-700 border-0">
-                        From {products.filter(p => p.step4Results?.compliance_updates).length} products
-                      </Badge>
+                    {futureComplianceUpdates > 0 ? (
+                      <span className="text-xs text-gray-500">Scheduled updates</span>
                     ) : (
-                      <Badge variant="secondary" className="border-0">No updates yet</Badge>
+                      <span className="text-xs text-gray-500">No upcoming updates</span>
                     )}
                   </div>
                 </>

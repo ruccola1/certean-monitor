@@ -25,16 +25,19 @@ Replace the default code with this:
 exports.onExecutePostLogin = async (event, api) => {
   const namespace = 'https://localhost/';
   
-  // Priority: user_metadata > app_metadata > user.sub (fallback)
+  // Extract client_id - Priority: user_metadata > app_metadata > user.sub (fallback)
   let clientId = null;
+  let clientName = null;
   
   // Try user_metadata first
   if (event.user.user_metadata && event.user.user_metadata.client_id) {
     clientId = event.user.user_metadata.client_id;
+    clientName = event.user.user_metadata.client_name;
   }
   // Then try app_metadata
   else if (event.user.app_metadata && event.user.app_metadata.client_id) {
     clientId = event.user.app_metadata.client_id;
+    clientName = event.user.app_metadata.client_name;
   }
   // Fallback to user.sub (not ideal, but better than nothing)
   else if (event.user.sub) {
@@ -45,6 +48,12 @@ exports.onExecutePostLogin = async (event, api) => {
   if (clientId) {
     api.idToken.setCustomClaim(`${namespace}client_id`, clientId);
     api.accessToken.setCustomClaim(`${namespace}client_id`, clientId);
+  }
+  
+  // Add client_name as a custom claim in the token
+  if (clientName) {
+    api.idToken.setCustomClaim(`${namespace}client_name`, clientName);
+    api.accessToken.setCustomClaim(`${namespace}client_name`, clientName);
   }
 };
 ```
@@ -111,14 +120,17 @@ If you prefer using Rules instead of Actions:
 
 ```javascript
 function (user, context, callback) {
-  const namespace = 'https://certean-monitor.com/';
+  const namespace = 'https://localhost/';
   
   let clientId = null;
+  let clientName = null;
   
   if (user.user_metadata && user.user_metadata.client_id) {
     clientId = user.user_metadata.client_id;
+    clientName = user.user_metadata.client_name;
   } else if (user.app_metadata && user.app_metadata.client_id) {
     clientId = user.app_metadata.client_id;
+    clientName = user.app_metadata.client_name;
   } else if (user.sub) {
     clientId = user.sub;
   }
@@ -126,6 +138,11 @@ function (user, context, callback) {
   if (clientId) {
     context.idToken[namespace + 'client_id'] = clientId;
     context.accessToken[namespace + 'client_id'] = clientId;
+  }
+  
+  if (clientName) {
+    context.idToken[namespace + 'client_name'] = clientName;
+    context.accessToken[namespace + 'client_name'] = clientName;
   }
   
   callback(null, user, context);

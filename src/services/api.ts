@@ -14,13 +14,21 @@ class ApiService {
       timeout: 120000, // 2 minutes for long-running operations
     });
 
-    // Request interceptor for adding auth token
+    // Request interceptor for adding auth tokens
     this.client.interceptors.request.use(
       (config) => {
-        const token = this.getToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        // Use API key for backend authentication
+        const apiKey = import.meta.env.VITE_CERTEAN_API_KEY;
+        if (apiKey) {
+          config.headers.Authorization = `Bearer ${apiKey}`;
         }
+        
+        // Add Auth0 token for user identification
+        const auth0Token = this.getAuth0Token();
+        if (auth0Token) {
+          config.headers['X-User-Token'] = `Bearer ${auth0Token}`;
+        }
+        
         return config;
       },
       (error) => {
@@ -52,6 +60,18 @@ class ApiService {
 
   clearToken() {
     localStorage.removeItem('auth_token');
+  }
+
+  setAuth0Token(token: string) {
+    localStorage.setItem('auth0_token', token);
+  }
+
+  getAuth0Token(): string | null {
+    return localStorage.getItem('auth0_token');
+  }
+
+  clearAuth0Token() {
+    localStorage.removeItem('auth0_token');
   }
 
   getInstance(): AxiosInstance {

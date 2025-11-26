@@ -1,0 +1,237 @@
+{
+  "markets": {
+    "type": "accordion",
+    "items": [
+      {
+        "id": "eu_category",
+        "label": "European Union (EU)",
+        "children": [
+          { "id": "682fa10ba50577edc143d1a2", "label": "Austria", "checked": false },
+          { "id": "682fa10ba50577edc143d1a3", "label": "Belgium", "checked": false },
+          { "id": "682fa10ba50577edc143d1a4", "label": "Bulgaria", "checked": false },
+          { "id": "682fa10ba50577edc143d1a5", "label": "Croatia", "checked": false },
+          { "id": "682fa10ba50577edc143d1a6", "label": "Cyprus", "checked": false },
+          { "id": "682fa10ba50577edc143d1a7", "label": "Czech Republic", "checked": false },
+          { "id": "682fa10ba50577edc143d1a8", "label": "Denmark", "checked": false },
+          { "id": "682fa10ba50577edc143d1a9", "label": "Estonia", "checked": false },
+          { "id": "682fa10ba50577edc143d1aa", "label": "Finland", "checked": false },
+          { "id": "682f9fbba50577edc143d1a1", "label": "France", "checked": false },
+          { "id": "682fa10ba50577edc143d1ab", "label": "Germany", "checked": false },
+          { "id": "682fa10ba50577edc143d1ac", "label": "Greece", "checked": false },
+          { "id": "682fa10ba50577edc143d1ad", "label": "Hungary", "checked": false },
+          { "id": "682fa10ba50577edc143d1ae", "label": "Ireland", "checked": false },
+          { "id": "682fa10ba50577edc143d1af", "label": "Italy", "checked": false },
+          { "id": "682fa10ba50577edc143d1b0", "label": "Latvia", "checked": false },
+          { "id": "682fa10ba50577edc143d1b1", "label": "Lithuania", "checked": false },
+          { "id": "682fa10ba50577edc143d1b2", "label": "Luxembourg", "checked": false },
+          { "id": "682fa10ba50577edc143d1b3", "label": "Malta", "checked": false },
+          { "id": "682fa10ba50577edc143d1b4", "label": "Netherlands", "checked": false },
+          { "id": "682fa10ba50577edc143d1b5", "label": "Poland", "checked": false },
+          { "id": "682fa10ba50577edc143d1b6", "label": "Portugal", "checked": false },
+          { "id": "682fa10ba50577edc143d1b7", "label": "Romania", "checked": false },
+          { "id": "682fa10ba50577edc143d1b8", "label": "Slovakia", "checked": false },
+          { "id": "682fa10ba50577edc143d1b9", "label": "Slovenia", "checked": false },
+          { "id": "682fa10ba50577edc143d1ba", "label": "Spain", "checked": false },
+          { "id": "682fa10ba50577edc143d1bb", "label": "Sweden", "checked": false }
+        ]
+      },
+      {
+        "id": "eea_category",
+        "label": "European Economic Area (EEA)",
+        "children": [
+          { "id": "eea_austria", "label": "Austria", "checked": false },
+          { "id": "eea_belgium", "label": "Belgium", "checked": false },
+          { "id": "682fa1b3a50577edc143d1c3", "label": "Iceland", "checked": false },
+          { "id": "682fa1b3a50577edc143d1c5", "label": "Liechtenstein", "checked": false },
+          { "id": "682fa1b3a50577edc143d1ca", "label": "Norway", "checked": false }
+        ]
+      },
+      {
+        "id": "gcc_category",
+        "label": "Gulf Cooperation Council (GCC)",
+        "children": [
+          { "id": "682fa3a9a50577edc143d20b", "label": "Bahrain", "checked": false },
+          { "id": "682fa3a9a50577edc143d21b", "label": "Kuwait", "checked": false },
+          { "id": "682fa3a9a50577edc143d225", "label": "Oman", "checked": false },
+          { "id": "682fa3a9a50577edc143d229", "label": "Qatar", "checked": false },
+          { "id": "682fa3a9a50577edc143d22b", "label": "Saudi Arabia", "checked": false },
+          { "id": "682fa3a9a50577edc143d235", "label": "United Arab Emirates", "checked": false }
+        ]
+      },
+      {
+        "id": "north_america_market",
+        "label": "North America",
+        "children": [
+          { "id": "6847f4bb0699284639f41ce1", "label": "Canada", "checked": false },
+          { "id": "6847f4bb0699284639f41ced", "label": "Mexico", "checked": false },
+          { "id": "682f94179d96c68447294fba", "label": "United States", "checked": false }
+        ]
+      },
+      {
+        "id": "asia_market",
+        "label": "Asia",
+        "children": [
+          { "id": "682fa3a9a50577edc143d210", "label": "China", "checked": false },
+          { "id": "682fa3a9a50577edc143d213", "label": "India", "checked": false },
+          { "id": "682fa3a9a50577edc143d214", "label": "Indonesia", "checked": false },
+          { "id": "682fa3a9a50577edc143d218", "label": "Japan", "checked": false },
+          { "id": "682fa3a9a50577edc143d22d", "label": "South Korea", "checked": false },
+          { "id": "682fa3a9a50577edc143d22c", "label": "Singapore", "checked": false },
+          { "id": "682fa3a9a50577edc143d231", "label": "Thailand", "checked": false },
+          { "id": "682fa3a9a50577edc143d237", "label": "Vietnam", "checked": false }
+        ]
+      },
+      {
+        "id": "oceania_market",
+        "label": "Oceania",
+        "children": [
+          { "id": "682fa517a50577edc143d27c", "label": "Australia", "checked": false },
+          { "id": "682fa517a50577edc143d282", "label": "New Zealand", "checked": false }
+        ]
+      }
+    ]
+  },
+  "inventory": {
+    "type": "accordion",
+    "items": [
+      {
+        "id": "inv_material",
+        "label": "Material",
+        "children": [
+          { "id": "mat_wood", "label": "Wood", "checked": false },
+          { "id": "mat_metal", "label": "Metal", "checked": false },
+          { "id": "mat_plastic", "label": "Plastic", "checked": false },
+          { "id": "mat_glass", "label": "Glass", "checked": false },
+          { "id": "mat_textile", "label": "Textile", "checked": false },
+          { "id": "mat_leather", "label": "Leather", "checked": false },
+          { "id": "mat_ceramic", "label": "Ceramic", "checked": false },
+          { "id": "mat_foam", "label": "Foam/Latex", "checked": false },
+          { "id": "mat_paper", "label": "Paper", "checked": false }
+        ]
+      },
+      {
+        "id": "inv_series",
+        "label": "Series",
+        "children": []
+      },
+      {
+        "id": "inv_category",
+        "label": "Category",
+        "children": [
+          { "id": "cat_furniture", "label": "Furniture", "checked": false },
+          { "id": "cat_lighting", "label": "Lighting", "checked": false },
+          { "id": "cat_textiles", "label": "Textiles", "checked": false },
+          { "id": "cat_kitchenware", "label": "Kitchenware", "checked": false },
+          { "id": "cat_electronics", "label": "Electronics", "checked": false },
+          { "id": "cat_toys", "label": "Toys", "checked": false },
+          { "id": "cat_cosmetics", "label": "Cosmetics", "checked": false },
+          { "id": "cat_food", "label": "Food Products", "checked": false }
+        ]
+      }
+    ]
+  },
+  "areas": {
+    "type": "accordion",
+    "items": [
+      {
+        "id": "682fb1e2a50577edc143d2a0",
+        "label": "Chemical",
+        "children": [
+          { "id": "682fb302a50577edc143d2a8", "label": "General requirements", "checked": false },
+          { "id": "682fb302a50577edc143d2a9", "label": "Children Products", "checked": false },
+          { "id": "682fb302a50577edc143d2aa", "label": "Toys", "checked": false },
+          { "id": "682fb302a50577edc143d2ab", "label": "Biocides", "checked": false },
+          { "id": "682fb302a50577edc143d2ad", "label": "Electrical and electronic", "checked": false },
+          { "id": "682fb302a50577edc143d2ae", "label": "Food Contact", "checked": false },
+          { "id": "682fb302a50577edc143d2af", "label": "Textile", "checked": false },
+          { "id": "682fb302a50577edc143d2c0", "label": "PFAS", "checked": false }
+        ]
+      },
+      {
+        "id": "682fb1e2a50577edc143d2a1",
+        "label": "Electrical",
+        "children": [
+          { "id": "682fb302a50577edc143d2c1", "label": "Home Smart - Regulatory requirements", "checked": false },
+          { "id": "682fb302a50577edc143d2c3", "label": "Electrical components", "checked": false },
+          { "id": "682fb302a50577edc143d2c4", "label": "LED light sources and Luminaires", "checked": false },
+          { "id": "682fb302a50577edc143d2c6", "label": "Electrical Products", "checked": false },
+          { "id": "682fb302a50577edc143d2c7", "label": "Batteries", "checked": false },
+          { "id": "682fb302a50577edc143d2cf", "label": "Electrical safety", "checked": false }
+        ]
+      },
+      {
+        "id": "682fb1e2a50577edc143d2a2",
+        "label": "Mechanical",
+        "children": [
+          { "id": "682fb302a50577edc143d2d3", "label": "Seating furniture", "checked": false },
+          { "id": "682fb302a50577edc143d2d4", "label": "Storage furniture", "checked": false },
+          { "id": "682fb302a50577edc143d2d5", "label": "Tables", "checked": false },
+          { "id": "682fb302a50577edc143d2d6", "label": "Beds", "checked": false },
+          { "id": "682fb302a50577edc143d2d8", "label": "Stability", "checked": false },
+          { "id": "682fb302a50577edc143d2da", "label": "Children products", "checked": false }
+        ]
+      },
+      {
+        "id": "682fb1e2a50577edc143d2a3",
+        "label": "Material",
+        "children": [
+          { "id": "682fb302a50577edc143d2f3", "label": "Adhesives", "checked": false },
+          { "id": "682fb302a50577edc143d2f4", "label": "Board materials", "checked": false },
+          { "id": "682fb302a50577edc143d2f5", "label": "Ceramic", "checked": false },
+          { "id": "682fb302a50577edc143d300", "label": "Metal", "checked": false },
+          { "id": "682fb302a50577edc143d303", "label": "Plastic", "checked": false },
+          { "id": "682fb302a50577edc143d304", "label": "Solid Wood", "checked": false }
+        ]
+      },
+      {
+        "id": "682fb1e2a50577edc143d2a4",
+        "label": "Product Information/Packaging",
+        "children": [
+          { "id": "682fb302a50577edc143d309", "label": "Labeling", "checked": false },
+          { "id": "682fb302a50577edc143d30a", "label": "Marking and traceability", "checked": false },
+          { "id": "682fb302a50577edc143d30d", "label": "Law", "checked": false }
+        ]
+      },
+      {
+        "id": "682fb1e2a50577edc143d2a5",
+        "label": "Food",
+        "children": [
+          { "id": "682fb302a50577edc143d30e", "label": "Certification & authority approvals", "checked": false },
+          { "id": "682fb302a50577edc143d30f", "label": "Food Packaging material", "checked": false },
+          { "id": "682fb302a50577edc143d310", "label": "Food Product composition", "checked": false },
+          { "id": "682fb302a50577edc143d313", "label": "Product Labelling & Information", "checked": false }
+        ]
+      },
+      {
+        "id": "682fb1e2a50577edc143d2a6",
+        "label": "Producer Responsibility",
+        "children": [
+          { "id": "682fb302a50577edc143d315", "label": "Producer Responsibility", "checked": false }
+        ]
+      },
+      {
+        "id": "682fb1e2a50577edc143d2a7",
+        "label": "Packaging",
+        "children": [
+          { "id": "682fb302a50577edc143d316", "label": "Packaging", "checked": false }
+        ]
+      }
+    ]
+  },
+  "entity": {
+    "type": "simple",
+    "items": [
+      { "id": "entity_ingka_group", "label": "Ingka Group", "checked": false },
+      { "id": "al_futtaim", "label": "Al-Futtaim", "checked": false },
+      { "id": "dairy_farm", "label": "Dairy Farm", "checked": false },
+      { "id": "ikano_group", "label": "Ikano Group", "checked": false },
+      { "id": "sarton", "label": "Sarton", "checked": false },
+      { "id": "falabella", "label": "Falabella", "checked": false },
+      { "id": "inter_ikea_retail", "label": "Inter IKEA Retail", "checked": false },
+      { "id": "northern_birch", "label": "Northern Birch", "checked": false },
+      { "id": "mapa_entity", "label": "MAPA", "checked": false },
+      { "id": "house_market_entity", "label": "House Market", "checked": false }
+    ]
+  }
+}
+

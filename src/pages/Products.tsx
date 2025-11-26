@@ -8,10 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, XCircle, Eye, EyeOff, ExternalLink, Bell, MoreVertical, Edit, Copy, Share2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, XCircle, Eye, EyeOff, ExternalLink, Bell, MoreVertical, Edit, Copy, Share2, RefreshCw, Link2, Link2Off, Info, Upload, FileText, Link as LinkIcon, Camera, Mic, Image, File, ChevronDown, ChevronRight } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
+import { ProductFilterbar } from '@/components/products/ProductFilterbar';
 import { productService } from '@/services/productService';
 import { apiService } from '@/services/api';
+import { eventLogService } from '@/services/eventLogService';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import {
   AlertDialog,
@@ -185,6 +187,7 @@ interface ProductDetails {
   description: string;
   type: string;
   markets: string[];
+  target_audience?: ('consumer' | 'business')[];
   status: string;
   step0Status: string;
   step1Status: string;
@@ -237,8 +240,98 @@ interface ComplianceArea {
 
 export default function Products() {
   const { user } = useAuth0();
+  
+  // Helper to get user info for event logging
+  const getUserInfo = () => ({
+    user_id: (user as any)?.sub || 'unknown',
+    email: (user as any)?.email || 'unknown@example.com',
+    name: (user as any)?.name || (user as any)?.nickname || (user as any)?.email || 'Unknown User'
+  });
+
+  // Connect to backend log stream for real-time logs
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://q57c4vz2em.eu-west-1.awsapprunner.com';
+    let eventSource: EventSource | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    
+    const connectToLogStream = () => {
+      try {
+        // Note: SSE doesn't support custom headers for auth
+        const url = `${API_BASE}/api/logs/stream`;
+        
+        console.log('%c📡 Connecting to certean-ai log stream...', 'color: #6366f1; font-weight: bold');
+        eventSource = new EventSource(url);
+        
+        eventSource.onopen = () => {
+          console.log('%c✅ Connected to certean-ai log stream', 'color: #10b981; font-weight: bold');
+        };
+        
+        eventSource.onmessage = (event) => {
+          try {
+            const log = JSON.parse(event.data);
+            
+            // Skip keepalive and separator messages
+            if (log.type === 'separator') {
+              console.log('%c' + log.message, 'color: #6366f1; font-style: italic');
+              return;
+            }
+            
+            // Format and display the log
+            const levelColors: Record<string, string> = {
+              'DEBUG': '#9ca3af',
+              'INFO': '#3b82f6',
+              'WARNING': '#f59e0b',
+              'ERROR': '#ef4444',
+              'CRITICAL': '#dc2626'
+            };
+            
+            const color = levelColors[log.level] || '#6b7280';
+            const time = log.timestamp?.split('T')[1]?.split('.')[0] || '';
+            const prefix = `[${time}] [${log.level}]`;
+            
+            // Use different console methods based on level
+            if (log.level === 'ERROR' || log.level === 'CRITICAL') {
+              console.error(`%c${prefix} ${log.message}`, `color: ${color}`);
+            } else if (log.level === 'WARNING') {
+              console.warn(`%c${prefix} ${log.message}`, `color: ${color}`);
+            } else {
+              console.log(`%c${prefix} ${log.message}`, `color: ${color}`);
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        };
+        
+        eventSource.onerror = () => {
+          console.log('%c⚠️ Log stream disconnected, reconnecting in 5s...', 'color: #f59e0b');
+          eventSource?.close();
+          reconnectTimeout = setTimeout(connectToLogStream, 5000);
+        };
+      } catch (error) {
+        console.error('Failed to connect to log stream:', error);
+      }
+    };
+    
+    // Start connection
+    connectToLogStream();
+    
+    // Cleanup on unmount
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+    };
+  }, []);
+  
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  // Track which step details have been loaded (cache)
+  const [loadedStepDetails, setLoadedStepDetails] = useState<Map<string, any>>(new Map());
+  const [loadingStepDetails, setLoadingStepDetails] = useState<Set<string>>(new Set());
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [productToDuplicate, setProductToDuplicate] = useState<ProductDetails | null>(null);
   const [complianceAreas, setComplianceAreas] = useState<ComplianceArea[]>([]);
@@ -252,6 +345,20 @@ export default function Products() {
     productName: ''
   });
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  
+  // Component info modal state
+  const [componentInfoModal, setComponentInfoModal] = useState<{
+    open: boolean;
+    componentName: string;
+    percentage: number;
+    missingDetails: string;
+  }>({
+    open: false,
+    componentName: '',
+    percentage: 0,
+    missingDetails: ''
+  });
   
   // Track which steps are being executed for loading states
   const [executingSteps, setExecutingSteps] = useState<Set<string>>(new Set());
@@ -259,9 +366,62 @@ export default function Products() {
   // Edit mode state
   const [editingStep0, setEditingStep0] = useState<{ productId: string } | null>(null);
   const [editingStep2, setEditingStep2] = useState<{ productId: string } | null>(null);
+  const [savingStep0, setSavingStep0] = useState(false);
+  const [savingStep2, setSavingStep2] = useState(false);
   
   // Step 0 edit state (local copies for editing)
   const [step0EditData, setStep0EditData] = useState<any>(null);
+  
+  // Data Ingestion state for Step 0
+  const [dataIngestion, setDataIngestion] = useState<{
+    productId: string;
+    freeText: string;
+    sourceUrls: string[];
+    newSourceUrl: string;
+    uploadedDocuments: { name: string; size: number; type: string }[];
+    uploadedImages: { name: string; size: number; preview?: string }[];
+  } | null>(null);
+  const [savingDataIngestion, setSavingDataIngestion] = useState(false);
+  
+  // Component expand/collapse state - tracks which components are expanded per product
+  // Format: { productId: Set<componentIndex> } - expanded components stored in a Set
+  const [expandedComponents, setExpandedComponents] = useState<Map<string, Set<number>>>(new Map());
+  
+  // Helper to toggle component expansion
+  const toggleComponentExpansion = (productId: string, componentIndex: number) => {
+    setExpandedComponents(prev => {
+      const newMap = new Map(prev);
+      const productExpanded = newMap.get(productId) || new Set();
+      const newSet = new Set(productExpanded);
+      if (newSet.has(componentIndex)) {
+        newSet.delete(componentIndex);
+      } else {
+        newSet.add(componentIndex);
+      }
+      newMap.set(productId, newSet);
+      return newMap;
+    });
+  };
+  
+  // Helper to expand/collapse all components for a product
+  const toggleAllComponents = (productId: string, components: any[], expand: boolean) => {
+    setExpandedComponents(prev => {
+      const newMap = new Map(prev);
+      if (expand) {
+        // Expand all - add all indices
+        const allIndices = new Set(components.map((_, idx) => idx));
+        newMap.set(productId, allIndices);
+      } else {
+        // Collapse all - empty set
+        newMap.set(productId, new Set());
+      }
+      return newMap;
+    });
+  };
+  
+  // Refs for file inputs
+  const documentInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   
   // Step 2 edit state
   const [step2EditData, setStep2EditData] = useState<any>(null);
@@ -272,7 +432,29 @@ export default function Products() {
   const [manualElementMarket, setManualElementMarket] = useState<string>('');
   const [manualElementType, setManualElementType] = useState<string>('legislation');
   
+  // Filter bar state - single Set for all active filter IDs
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+  
   const { addNotification } = useNotificationContext();
+  
+  // Filter toggle handler
+  const handleToggleFilter = (filterId: string, isChecked: boolean) => {
+    setActiveFilters(prev => {
+      const newFilters = new Set(prev);
+      if (isChecked) {
+        newFilters.add(filterId);
+      } else {
+        newFilters.delete(filterId);
+      }
+      return newFilters;
+    });
+  };
+
+  // Clear all filters handler
+  const handleClearFilters = () => {
+    setActiveFilters(new Set());
+  };
+  
   const previousStatusesRef = useRef<Map<string, {
     step0: string | undefined;
     step1: string | undefined;
@@ -281,15 +463,35 @@ export default function Products() {
     step4: string | undefined;
   }>>(new Map());
   
+  // Track previous step4 results for change detection
+  const previousStep4ResultsRef = useRef<Map<string, Step4Results | undefined>>(new Map());
+  
+  // Track new update counts per product (for badge display)
+  const [newUpdateCounts, setNewUpdateCounts] = useState<Map<string, { new: number; changed: number }>>(new Map());
+  
+  // Track which update IDs are new/changed (for individual update highlighting)
+  const [newUpdateIds, setNewUpdateIds] = useState<Map<string, Set<string>>>(new Map());
+  
   // Ref to access latest products without triggering useEffect re-runs
   const productsRef = useRef<ProductDetails[]>(products);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (skipDebounce = false) => {
     try {
       // Don't fetch if user isn't loaded yet
       if (!user?.sub) {
         console.log('User not loaded yet, skipping products fetch');
         return;
+      }
+
+      // Debounce check - prevent rapid successive fetches
+      if (!skipDebounce) {
+        const now = Date.now();
+        const timeSinceLastFetch = now - lastFetchTimeRef.current;
+        if (timeSinceLastFetch < MIN_FETCH_INTERVAL) {
+          console.log(`Debouncing: Skipping fetch (${timeSinceLastFetch}ms since last)`);
+          return;
+        }
+        lastFetchTimeRef.current = now;
       }
 
       // Set API key
@@ -300,14 +502,99 @@ export default function Products() {
 
       // Extract client_id (company ID) from Auth0 user metadata
       const clientId = getClientId(user);
-      console.log('Fetching products for client:', clientId);
       
-      const response = await productService.getAll(clientId);
+      // If no client assigned, show empty workspace
+      if (!clientId) {
+        console.log('📋 No client assigned - showing empty workspace');
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
+      
+      console.log('⏱️ [PERF] Starting products fetch for client:', clientId);
+      const fetchStart = performance.now();
+      
+      const response = await productService.getAll(clientId, true); // minimal=true for fast loading
+      const fetchEnd = performance.now();
+      console.log(`⏱️ [PERF] Products API took ${(fetchEnd - fetchStart).toFixed(0)}ms`);
       console.log('Products fetched:', response.data?.length || 0);
       
+      // Log response size
+      const responseSize = JSON.stringify(response.data).length;
+      console.log(`📦 [PERF] Response size: ${(responseSize / 1024).toFixed(1)}KB (minimal mode)`);
+      
       const newProducts = (response.data || []) as unknown as ProductDetails[];
+      
+      // Log detailed progress for any running steps
+      newProducts.forEach(product => {
+        const runningSteps: string[] = [];
+        if (product.step0Status === 'running') runningSteps.push('Step 0');
+        if (product.step1Status === 'running') runningSteps.push('Step 1');
+        if (product.step2Status === 'running') runningSteps.push('Step 2');
+        if (product.step3Status === 'running') runningSteps.push('Step 3');
+        if (product.step4Status === 'running') runningSteps.push('Step 4');
+        
+        if (runningSteps.length > 0) {
+          console.group(`🔄 [${product.name}] Running: ${runningSteps.join(', ')}`);
+          
+          // Log Step 0 progress
+          if (product.step0Status === 'running' && product.step0Progress) {
+            console.log(`%c[Step 0] ${product.step0Progress.percentage}% - ${product.step0Progress.current}`, 'color: #3b82f6; font-weight: bold');
+            if (product.step0Progress.steps?.length > 0) {
+              const recentSteps = product.step0Progress.steps.slice(-3);
+              recentSteps.forEach(s => console.log(`  └─ ${s.timestamp?.split('T')[1]?.split('.')[0] || ''} ${s.message}`));
+            }
+          }
+          
+          // Log Step 1 progress
+          if (product.step1Status === 'running' && product.step1Progress) {
+            console.log(`%c[Step 1] ${product.step1Progress.percentage}% - ${product.step1Progress.current}`, 'color: #10b981; font-weight: bold');
+            if (product.step1Progress.steps?.length > 0) {
+              const recentSteps = product.step1Progress.steps.slice(-3);
+              recentSteps.forEach(s => console.log(`  └─ ${s.timestamp?.split('T')[1]?.split('.')[0] || ''} ${s.message}`));
+            }
+          }
+          
+          // Log Step 2 progress
+          if (product.step2Status === 'running' && product.step2Progress) {
+            console.log(`%c[Step 2] ${product.step2Progress.percentage}% - ${product.step2Progress.current}`, 'color: #f59e0b; font-weight: bold');
+            if (product.step2Progress.steps?.length > 0) {
+              const recentSteps = product.step2Progress.steps.slice(-3);
+              recentSteps.forEach(s => console.log(`  └─ ${s.timestamp?.split('T')[1]?.split('.')[0] || ''} ${s.message}`));
+            }
+          }
+          
+          // Log Step 3 progress
+          if (product.step3Status === 'running' && product.step3Progress) {
+            console.log(`%c[Step 3] ${product.step3Progress.percentage}% - ${product.step3Progress.current}`, 'color: #8b5cf6; font-weight: bold');
+            if (product.step3Progress.steps?.length > 0) {
+              const recentSteps = product.step3Progress.steps.slice(-3);
+              recentSteps.forEach(s => console.log(`  └─ ${s.timestamp?.split('T')[1]?.split('.')[0] || ''} ${s.message}`));
+            }
+          }
+          
+          // Log Step 4 progress
+          if (product.step4Status === 'running' && product.step4Progress) {
+            console.log(`%c[Step 4] ${product.step4Progress.percentage}% - ${product.step4Progress.current}`, 'color: #ec4899; font-weight: bold');
+            if (product.step4Progress.steps?.length > 0) {
+              const recentSteps = product.step4Progress.steps.slice(-3);
+              recentSteps.forEach(s => console.log(`  └─ ${s.timestamp?.split('T')[1]?.split('.')[0] || ''} ${s.message}`));
+            }
+          }
+          
+          console.groupEnd();
+        }
+      });
+      
+      console.log('⏱️ [PERF] Setting products state...');
+      const renderStart = performance.now();
       setProducts(newProducts);
       productsRef.current = newProducts; // Update ref
+      // Measure render time on next tick
+      setTimeout(() => {
+        const renderEnd = performance.now();
+        console.log(`⏱️ [PERF] Render took ${(renderEnd - renderStart).toFixed(0)}ms`);
+      }, 0);
     } catch (error) {
       console.error('Error fetching products:', error);
       // Don't clear products on error - keep showing what we have
@@ -324,6 +611,7 @@ export default function Products() {
       }
     } finally {
       setLoading(false);
+      setInitialLoadComplete(true);
     }
   };
 
@@ -331,6 +619,10 @@ export default function Products() {
   useEffect(() => {
     productsRef.current = products;
   }, [products]);
+
+  // Debounce mechanism to prevent rapid successive fetches
+  const lastFetchTimeRef = useRef<number>(0);
+  const MIN_FETCH_INTERVAL = 2000; // 2 seconds minimum between fetches
 
   useEffect(() => {
     // Wait for user to be loaded before fetching
@@ -340,14 +632,14 @@ export default function Products() {
     }
 
     // Fetch products immediately when user is loaded
-    fetchProducts();
-    fetchComplianceAreas();
+    fetchProducts(true); // Skip debounce on initial load
+    // Don't fetch compliance areas on mount - lazy load when needed
 
-    // Smart polling: Only poll every 30 seconds, and only if there are running steps
+    // Optimized polling: Poll frequently when steps are running
     const interval = setInterval(() => {
       // Use ref to access latest products without causing re-renders
       const currentProducts = productsRef.current;
-      const hasRunningSteps = currentProducts.some(p => 
+      const runningProducts = currentProducts.filter(p => 
         p.step0Status === 'running' || 
         p.step1Status === 'running' || 
         p.step2Status === 'running' || 
@@ -355,18 +647,28 @@ export default function Products() {
         p.step4Status === 'running'
       );
       
-      if (hasRunningSteps || currentProducts.length === 0) {
-        console.log('Polling: Running steps detected, fetching products...');
+      // Only fetch if there are running steps AND enough time has passed
+      const now = Date.now();
+      if (runningProducts.length > 0 && (now - lastFetchTimeRef.current) >= MIN_FETCH_INTERVAL) {
+        console.log(`%c📡 Polling: ${runningProducts.length} product(s) with running steps`, 'color: #6366f1');
+        lastFetchTimeRef.current = now;
         fetchProducts();
-      } else {
-        console.log('Polling: All steps idle, skipping fetch');
       }
-    }, 30000); // Poll every 30 seconds
+    }, 5000); // Poll every 5 seconds for faster progress updates
 
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [user?.sub]); // Only re-run when user changes, NOT when products change
+
+  // Lazy load compliance areas when user expands Step 2
+  useEffect(() => {
+    // Only fetch if Step 2 is expanded and we haven't loaded compliance areas yet
+    if (expandedStep?.stepNumber === 2 && complianceAreas.length === 0) {
+      console.log('Lazy loading compliance areas for Step 2 filtering');
+      fetchComplianceAreas();
+    }
+  }, [expandedStep]);
 
   const fetchComplianceAreas = async () => {
     try {
@@ -425,18 +727,86 @@ export default function Products() {
 
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        fetchProducts();
+        fetchProducts(false); // Use debounce for tab visibility changes
       }
     };
     
+    const handleWindowFocus = () => {
+      fetchProducts(false); // Use debounce for window focus
+    };
+    
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', fetchProducts);
+    window.addEventListener('focus', handleWindowFocus);
     
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', fetchProducts);
+      window.removeEventListener('focus', handleWindowFocus);
     };
   }, [user?.sub]); // Re-run when user loads
+
+  // Helper function to generate a unique key for an update (for comparison)
+  const getUpdateKey = (update: any): string => {
+    const regulation = update?.regulation || update?.name || '';
+    const title = update?.title || '';
+    const date = update?.update_date || update?.date || '';
+    const description = update?.description || '';
+    return `${regulation}|${title}|${date}|${description.slice(0, 100)}`;
+  };
+
+  // Helper function to compare step4 results and find new/changed updates
+  const compareStep4Results = (
+    oldResults: Step4Results | undefined,
+    newResults: Step4Results | undefined
+  ): { newUpdates: number; changedUpdates: number; newUpdateKeys: Set<string> } => {
+    if (!newResults?.compliance_updates) {
+      return { newUpdates: 0, changedUpdates: 0, newUpdateKeys: new Set() };
+    }
+
+    const newUpdates: string[] = [];
+    const changedUpdates: string[] = [];
+    const newUpdateKeys = new Set<string>();
+
+    // If no previous results, this is the first run - don't count as new
+    if (!oldResults?.compliance_updates || oldResults.compliance_updates.length === 0) {
+      return { newUpdates: 0, changedUpdates: 0, newUpdateKeys: new Set() };
+    }
+
+    // Build a map of old update keys to their full content
+    const oldUpdateMap = new Map<string, any>();
+    oldResults.compliance_updates.forEach((update: any) => {
+      const key = getUpdateKey(update);
+      oldUpdateMap.set(key, update);
+    });
+
+    // Compare new updates against old ones
+    newResults.compliance_updates.forEach((newUpdate: any) => {
+      const key = getUpdateKey(newUpdate);
+      
+      if (!oldUpdateMap.has(key)) {
+        // This is a completely new update
+        newUpdates.push(key);
+        newUpdateKeys.add(key);
+      } else {
+        // Check if content changed significantly
+        const oldUpdate = oldUpdateMap.get(key);
+        const newDesc = newUpdate?.description || '';
+        const oldDesc = oldUpdate?.description || '';
+        const newImpact = newUpdate?.impact || '';
+        const oldImpact = oldUpdate?.impact || '';
+        
+        if (newDesc !== oldDesc || newImpact !== oldImpact) {
+          changedUpdates.push(key);
+          newUpdateKeys.add(key);
+        }
+      }
+    });
+
+    return { 
+      newUpdates: newUpdates.length, 
+      changedUpdates: changedUpdates.length,
+      newUpdateKeys 
+    };
+  };
 
   // Detect status changes and send notifications
   useEffect(() => {
@@ -445,7 +815,7 @@ export default function Products() {
       const previousStatuses = previousStatusesRef.current.get(productId);
       
       if (!previousStatuses) {
-        // First time seeing this product, store its current statuses
+        // First time seeing this product, store its current statuses and step4 results
         previousStatusesRef.current.set(productId, {
           step0: product.step0Status,
           step1: product.step1Status,
@@ -453,12 +823,14 @@ export default function Products() {
           step3: product.step3Status,
           step4: product.step4Status,
         });
+        // Store step4 results for future comparison
+        previousStep4ResultsRef.current.set(productId, product.step4Results);
         return;
       }
       
       // Check each step for status changes
       const steps = [
-        { num: 0, current: product.step0Status, previous: previousStatuses.step0, name: 'Product Details' },
+        { num: 0, current: product.step0Status, previous: previousStatuses.step0, name: 'Product Data' },
         { num: 1, current: product.step1Status, previous: previousStatuses.step1, name: 'Compliance Assessment' },
         { num: 2, current: product.step2Status, previous: previousStatuses.step2, name: 'Compliance Elements' },
         { num: 3, current: product.step3Status, previous: previousStatuses.step3, name: 'Element Mapping' },
@@ -468,6 +840,73 @@ export default function Products() {
       steps.forEach(step => {
         // Detect completed steps
         if (step.previous === 'running' && step.current === 'completed') {
+          // Special handling for Step 4 - detect update changes
+          if (step.num === 4) {
+            const previousStep4 = previousStep4ResultsRef.current.get(productId);
+            const currentStep4 = product.step4Results;
+            
+            // Compare results and detect changes
+            const { newUpdates, changedUpdates, newUpdateKeys } = compareStep4Results(
+              previousStep4,
+              currentStep4
+            );
+            
+            const totalChanges = newUpdates + changedUpdates;
+            
+            if (totalChanges > 0) {
+              // Fire an update change notification
+              let message = `${product.name}: `;
+              if (newUpdates > 0 && changedUpdates > 0) {
+                message += `${newUpdates} new and ${changedUpdates} changed updates detected`;
+              } else if (newUpdates > 0) {
+                message += `${newUpdates} new update${newUpdates > 1 ? 's' : ''} detected`;
+              } else {
+                message += `${changedUpdates} update${changedUpdates > 1 ? 's' : ''} changed`;
+              }
+
+              addNotification({
+                type: 'update_change',
+                title: 'Compliance Updates Changed',
+                message,
+                productId: product.id,
+                productName: product.name,
+                step: 4,
+                metadata: {
+                  newUpdatesCount: newUpdates,
+                  changedUpdatesCount: changedUpdates,
+                  isUpdateChange: true,
+                },
+              });
+
+              // Update the new update counts for badge display
+              setNewUpdateCounts(prev => {
+                const updated = new Map(prev);
+                updated.set(productId, { new: newUpdates, changed: changedUpdates });
+                return updated;
+              });
+
+              // Update the new update IDs for highlighting
+              setNewUpdateIds(prev => {
+                const updated = new Map(prev);
+                updated.set(productId, newUpdateKeys);
+                return updated;
+              });
+            } else {
+              // Step 4 completed with no changes
+              addNotification({
+                type: 'success',
+                title: `${step.name} Completed`,
+                message: `${product.name}: ${step.name} finished successfully (no changes)`,
+                productId: product.id,
+                productName: product.name,
+                step: step.num,
+              });
+            }
+            
+            // Update stored step4 results for next comparison
+            previousStep4ResultsRef.current.set(productId, currentStep4);
+          } else {
+            // Regular completion notification for other steps
           addNotification({
             type: 'success',
             title: `${step.name} Completed`,
@@ -476,6 +915,7 @@ export default function Products() {
             productName: product.name,
             step: step.num,
           });
+          }
         }
         
         // Detect failed steps
@@ -505,7 +945,90 @@ export default function Products() {
   const handleProductAdded = () => {
     setShowAddDialog(false);
     setProductToDuplicate(null); // Reset duplicate state
-    fetchProducts(); // Refresh the list
+    fetchProducts(true); // Skip debounce for user actions
+  };
+
+  // Lazy load step details when user expands a step
+  const handleToggleStep = async (productId: string, stepNumber: number) => {
+    const isCurrentlyExpanded = expandedStep?.productId === productId && expandedStep?.stepNumber === stepNumber;
+    
+    // If collapsing, just close it
+    if (isCurrentlyExpanded) {
+      setExpandedStep(null);
+      return;
+    }
+    
+    // Expanding - set expanded first for immediate UI feedback
+    setExpandedStep({ productId, stepNumber });
+    
+    // If expanding Step 4, clear the new update counts (user has seen them)
+    if (stepNumber === 4) {
+      setNewUpdateCounts(prev => {
+        const updated = new Map(prev);
+        updated.delete(productId);
+        return updated;
+      });
+      setNewUpdateIds(prev => {
+        const updated = new Map(prev);
+        updated.delete(productId);
+        return updated;
+      });
+    }
+    
+    // Check if we already have the details loaded
+    const cacheKey = `${productId}-step${stepNumber}`;
+    if (loadedStepDetails.has(cacheKey)) {
+      console.log(`✅ Using cached Step ${stepNumber} details for product ${productId}`);
+      return; // Already loaded
+    }
+    
+    // Load step details on-demand
+    console.log(`⏱️ [PERF] Lazy loading Step ${stepNumber} details for product ${productId}`);
+    setLoadingStepDetails(prev => new Set(prev).add(cacheKey));
+    
+    try {
+      const loadStart = performance.now();
+      const clientId = getClientId(user);
+      const response = await productService.getStepDetails(productId, stepNumber, clientId);
+      const loadEnd = performance.now();
+      
+      console.log(`⏱️ [PERF] Step ${stepNumber} details loaded in ${(loadEnd - loadStart).toFixed(0)}ms`);
+      
+      if (response.success && response.data) {
+        // Merge step details into the product
+        setProducts(prev => prev.map(p => {
+          if (p.id === productId) {
+            return {
+              ...p,
+              [`step${stepNumber}Results`]: response.data.results,
+              [`step${stepNumber}Payload`]: response.data.payload,
+              [`step${stepNumber}Progress`]: response.data.progress,
+              ...(stepNumber === 0 && response.data.components ? { components: response.data.components } : {})
+            };
+          }
+          return p;
+        }));
+        
+        // Cache that we've loaded this step
+        setLoadedStepDetails(prev => new Map(prev).set(cacheKey, true));
+      }
+    } catch (error) {
+      console.error(`Failed to load Step ${stepNumber} details:`, error);
+      addNotification({
+        type: 'error',
+        title: 'Failed to Load Details',
+        message: `Could not load step details. Please try again.`,
+        productId,
+        productName: '',
+        step: stepNumber,
+      });
+    } finally {
+      setLoadingStepDetails(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cacheKey);
+        return newSet;
+      });
+    }
   };
 
   const handleRemoveCategory = async (productId: string, category: string) => {
@@ -514,7 +1037,13 @@ export default function Products() {
         category
       });
       console.log('Category removed:', category);
-      fetchProducts();
+      
+      // Log event
+      const clientId = getClientId(user);
+      const product = products.find(p => p.id === productId);
+      await eventLogService.logEvent('categories_configured', productId, product?.name, { action: 'removed', category }, clientId, getUserInfo());
+      
+      fetchProducts(true); // Skip debounce for user actions
     } catch (error) {
       console.error('Failed to remove category:', error);
     }
@@ -526,27 +1055,75 @@ export default function Products() {
         material
       });
       console.log('Material removed:', material);
-      fetchProducts();
+      fetchProducts(true); // Skip debounce for user actions
     } catch (error) {
       console.error('Failed to remove material:', error);
     }
   };
 
   // Step 0 Edit Mode Handlers
-  const handleStartEditStep0 = (productId: string) => {
+  const handleStartEditStep0 = async (productId: string) => {
     console.log('🖊️ Starting edit mode for Step 0, product:', productId);
-    const product = products.find(p => p.id === productId);
+    let product = products.find(p => p.id === productId);
     if (!product) {
       console.error('Product not found:', productId);
       return;
     }
+    
+    // ALWAYS fetch fresh step0 details before editing to ensure latest saved data
+    // This prevents stale data issues due to React async state updates
+    const cacheKey = `${productId}-step0`;
+    console.log('⏱️ Loading fresh Step 0 details before edit...');
+    try {
+      const clientId = getClientId(user);
+      const response = await productService.getStepDetails(productId, 0, clientId);
+      
+      if (response.success && response.data) {
+        // Merge step details into the product state
+        setProducts(prev => prev.map(p => {
+          if (p.id === productId) {
+            return {
+              ...p,
+              step0Results: response.data.results,
+              step0Payload: response.data.payload,
+              step0Progress: response.data.progress,
+              ...(response.data.components ? { components: response.data.components } : {})
+            };
+          }
+          return p;
+        }));
+        
+        // Update cache
+        setLoadedStepDetails(prev => new Map(prev).set(cacheKey, true));
+        
+        // Use fresh data for edit form
+        product = {
+          ...product,
+          step0Results: response.data.results,
+          step0Payload: response.data.payload,
+          components: response.data.components || product.components,
+        };
+      }
+    } catch (error) {
+      console.error('Failed to load Step 0 details:', error);
+      addNotification({
+        type: 'error',
+        title: 'Failed to Load Details',
+        message: 'Could not load product details for editing.',
+        productId,
+        productName: product?.name || '',
+        step: 0,
+      });
+      return;
+    }
+    
     if (!product.step0Results) {
       console.error('step0Results not found for product:', productId);
       return;
     }
     
     console.log('Setting edit mode state...');
-    // Create editable copy first
+    // Create editable copy from fresh data
     const editData = {
       categories: [...(product.step0Results.categories || [])],
       materials: [...(product.step0Results.materials || [])],
@@ -668,10 +1245,13 @@ export default function Products() {
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
+    // Set saving state
+    setSavingStep0(true);
+    
     try {
       const clientId = getClientId(user);
       
-      // Update step0Results
+      // Update step0Results - preserve edited content
       const step0Results = {
         ...product.step0Results,
         categories: step0EditData.categories,
@@ -681,7 +1261,7 @@ export default function Products() {
         product_decomposition: step0EditData.product_decomposition || undefined,
       };
       
-      // Update step0Payload (used by next step) - create if doesn't exist
+      // Update step0Payload (used by next step) - preserve edited content
       const step0Payload = {
         ...(product.step0Payload || {}),
         categories: step0EditData.categories,
@@ -694,36 +1274,321 @@ export default function Products() {
       
       await productService.updateStep0Payload(productId, step0Payload, step0Results, clientId);
       
+      // Log event
+      await eventLogService.logEvent('step_edited', productId, product.name, { step: 0 }, clientId, getUserInfo());
+      
+      // IMMEDIATELY update local state with edited values so UI reflects changes
+      setProducts(prev => prev.map(p => {
+        if (p.id === productId) {
+          return {
+            ...p,
+            step0Results: step0Results,
+            step0Payload: step0Payload,
+            components: step0EditData.components,
+          };
+        }
+        return p;
+      }));
+      
+      // Mark cache as loaded with the new data
+      setLoadedStepDetails(prev => new Map(prev).set(`${productId}-step0`, true));
+      
       addNotification({ 
-        title: 'Product Details Updated',
-        message: 'Re-running analysis with updated information...',
+        title: 'Product Data Saved',
+        message: 'Your changes have been saved successfully.',
         type: 'success',
         productId: productId,
         productName: product.name,
         step: 0
       });
+      
       setEditingStep0(null);
       setStep0EditData(null);
-      
-      // Re-run Step 0 with updated information
-      try {
-        await productService.executeStep0(productId, clientId);
-        console.log('Step 0 re-triggered after save');
-      } catch (error) {
-        console.error('Failed to re-trigger Step 0:', error);
-      }
-      
-      fetchProducts();
     } catch (error) {
       console.error('Failed to save Step 0:', error);
       addNotification({ 
-        title: 'Product Details Update Failed',
-        message: 'Failed to save Product Details changes',
+        title: 'Product Data Update Failed',
+        message: 'Failed to save Product Data changes',
         type: 'error',
         productId: productId,
         productName: product.name,
         step: 0
       });
+    } finally {
+      setSavingStep0(false);
+    }
+  };
+
+  // Data Ingestion Handlers
+  const handleStartDataIngestion = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    // Load existing data ingestion from product
+    const existingData = (product as any).dataIngestion || {};
+    setDataIngestion({
+      productId,
+      freeText: existingData.freeText || '',
+      sourceUrls: existingData.sourceUrls || [],
+      newSourceUrl: '',
+      uploadedDocuments: existingData.uploadedDocuments || [],
+      uploadedImages: existingData.uploadedImages || [],
+    });
+  };
+
+  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!dataIngestion || !e.target.files) return;
+    
+    const files = Array.from(e.target.files);
+    const newDocs = files.map(file => ({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+    }));
+    
+    setDataIngestion({
+      ...dataIngestion,
+      uploadedDocuments: [...dataIngestion.uploadedDocuments, ...newDocs],
+    });
+    
+    // Reset input
+    if (documentInputRef.current) {
+      documentInputRef.current.value = '';
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!dataIngestion || !e.target.files) return;
+    
+    const files = Array.from(e.target.files);
+    const newImages = files.map(file => ({
+      name: file.name,
+      size: file.size,
+      preview: URL.createObjectURL(file),
+    }));
+    
+    setDataIngestion({
+      ...dataIngestion,
+      uploadedImages: [...dataIngestion.uploadedImages, ...newImages],
+    });
+    
+    // Reset input
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveDocument = (index: number) => {
+    if (!dataIngestion) return;
+    setDataIngestion({
+      ...dataIngestion,
+      uploadedDocuments: dataIngestion.uploadedDocuments.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleRemoveImage = (index: number) => {
+    if (!dataIngestion) return;
+    // Revoke object URL to free memory
+    if (dataIngestion.uploadedImages[index].preview) {
+      URL.revokeObjectURL(dataIngestion.uploadedImages[index].preview!);
+    }
+    setDataIngestion({
+      ...dataIngestion,
+      uploadedImages: dataIngestion.uploadedImages.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleCancelDataIngestion = () => {
+    setDataIngestion(null);
+  };
+
+  const handleAddSourceUrl = () => {
+    if (!dataIngestion || !dataIngestion.newSourceUrl.trim()) return;
+    
+    setDataIngestion({
+      ...dataIngestion,
+      sourceUrls: [...dataIngestion.sourceUrls, dataIngestion.newSourceUrl.trim()],
+      newSourceUrl: '',
+    });
+  };
+
+  const handleRemoveSourceUrl = (index: number) => {
+    if (!dataIngestion) return;
+    
+    setDataIngestion({
+      ...dataIngestion,
+      sourceUrls: dataIngestion.sourceUrls.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleSaveDataIngestion = async () => {
+    if (!dataIngestion) return;
+    
+    const product = products.find(p => p.id === dataIngestion.productId);
+    if (!product) return;
+    
+    setSavingDataIngestion(true);
+    
+    try {
+      const clientId = getClientId(user);
+      
+      // Prepare data ingestion object
+      const dataIngestionPayload = {
+        freeText: dataIngestion.freeText,
+        sourceUrls: dataIngestion.sourceUrls,
+        uploadedDocuments: dataIngestion.uploadedDocuments,
+        uploadedImages: dataIngestion.uploadedImages.map(img => ({ name: img.name, size: img.size })), // Don't save preview URLs
+        updatedAt: new Date().toISOString(),
+      };
+      
+      // Save to backend via product update
+      await apiService.getInstance().patch(`/api/products/${dataIngestion.productId}/data-ingestion`, {
+        dataIngestion: dataIngestionPayload,
+        client_id: clientId,
+      });
+      
+      // Update local state
+      setProducts(prev => prev.map(p => {
+        if (p.id === dataIngestion.productId) {
+          return {
+            ...p,
+            dataIngestion: dataIngestionPayload,
+          } as any;
+        }
+        return p;
+      }));
+      
+      addNotification({
+        title: 'Data Ingestion Saved',
+        message: 'Your additional information has been saved.',
+        type: 'success',
+        productId: dataIngestion.productId,
+        productName: product.name,
+        step: 0,
+      });
+      
+      setDataIngestion(null);
+      } catch (error) {
+      console.error('Failed to save data ingestion:', error);
+      addNotification({
+        title: 'Save Failed',
+        message: 'Failed to save data ingestion. Please try again.',
+        type: 'error',
+        productId: dataIngestion.productId,
+        productName: product.name,
+        step: 0,
+      });
+    } finally {
+      setSavingDataIngestion(false);
+    }
+  };
+
+  const handleSaveAndRerunWithDataIngestion = async () => {
+    if (!dataIngestion) return;
+    
+    const product = products.find(p => p.id === dataIngestion.productId);
+    if (!product) return;
+    
+    const productId = dataIngestion.productId;
+    const productName = product.name;
+    
+    setSavingDataIngestion(true);
+    
+    try {
+      const clientId = getClientId(user);
+      
+      // Prepare data ingestion object
+      const dataIngestionPayload = {
+        freeText: dataIngestion.freeText,
+        sourceUrls: dataIngestion.sourceUrls,
+        uploadedDocuments: dataIngestion.uploadedDocuments,
+        uploadedImages: dataIngestion.uploadedImages.map(img => ({ name: img.name, size: img.size })), // Don't save preview URLs
+        updatedAt: new Date().toISOString(),
+      };
+      
+      console.log('📝 Saving data ingestion for product:', productId);
+      
+      // Save to backend
+      await apiService.getInstance().patch(`/api/products/${productId}/data-ingestion`, {
+        dataIngestion: dataIngestionPayload,
+        client_id: clientId,
+      });
+      
+      console.log('✅ Data ingestion saved, now triggering Step 0...');
+      
+      // Update local state - show running and CLEAR the dataIngestion field
+      // (the content has been sent to the backend and will be incorporated into Step 0)
+      setProducts(prev => prev.map(p => {
+        if (p.id === productId) {
+          return {
+            ...p,
+            dataIngestion: null, // Clear - content will be incorporated into Step 0 output
+            step0Status: 'running',
+          } as any;
+        }
+        return p;
+      }));
+      
+      // Close the data ingestion form
+      setDataIngestion(null);
+      
+      addNotification({
+        title: 'Data Ingestion Saved',
+        message: 'Re-running analysis with your additional information...',
+        type: 'info',
+        productId: productId,
+        productName: productName,
+        step: 0,
+      });
+      
+      // Re-run Step 0 with the new data
+      // Note: The backend will read dataIngestion at the START and clear it at the END
+      // We don't clear it here to avoid race conditions
+      try {
+        console.log('🚀 Executing Step 0 for product:', productId);
+        await productService.executeStep0(productId, clientId);
+        console.log('✅ Step 0 execution started successfully');
+        // Backend handles clearing dataIngestion when Step 0 completes
+        
+      } catch (stepError) {
+        console.error('❌ Failed to execute Step 0:', stepError);
+        // Update status to error
+        setProducts(prev => prev.map(p => {
+          if (p.id === productId) {
+            return { ...p, step0Status: 'error' } as any;
+          }
+          return p;
+        }));
+        addNotification({
+          title: 'Analysis Failed',
+          message: 'Data was saved but failed to start analysis.',
+          type: 'error',
+          productId: productId,
+          productName: productName,
+          step: 0,
+        });
+      }
+      
+      // Invalidate cache and refresh
+      setLoadedStepDetails(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(`${productId}-step0`);
+        return newMap;
+      });
+      
+      fetchProducts(true);
+    } catch (error) {
+      console.error('❌ Failed to save data ingestion:', error);
+      addNotification({ 
+        title: 'Save Failed',
+        message: 'Failed to save data ingestion.',
+        type: 'error',
+        productId: productId,
+        productName: productName,
+        step: 0,
+      });
+    } finally {
+      setSavingDataIngestion(false);
     }
   };
 
@@ -904,7 +1769,7 @@ export default function Products() {
       setManualElementInput('');
       setManualElementMarket('');
       setManualElementType('legislation');
-      fetchProducts();
+      fetchProducts(true); // Skip debounce for user actions
     } catch (error: any) {
       console.error('Failed to save Step 2:', error);
       console.error('Error details:', {
@@ -958,9 +1823,14 @@ export default function Products() {
       console.log('🚀 Starting Step 0 for product:', productId);
       
       productService.executeStep0(productId, clientId)
-        .then(() => {
+        .then(async () => {
           console.log('✅ Step 0 started successfully');
-          fetchProducts(); // Refresh to get actual status
+          
+          // Log event
+          const product = products.find(p => p.id === productId);
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 0 }, clientId, getUserInfo());
+          
+          fetchProducts(true); // Skip debounce after step execution
         })
         .catch(error => {
           console.error('❌ Failed to start Step 0:', error);
@@ -1034,9 +1904,14 @@ export default function Products() {
       const clientId = getClientId(user);
       
       productService.executeStep1(productId, clientId)
-        .then(response => {
+        .then(async (response) => {
           console.log('Step 1 started for product:', productId, response.data);
-          fetchProducts();
+          
+          // Log event
+          const product = products.find(p => p.id === productId);
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 1 }, clientId, getUserInfo());
+          
+          fetchProducts(true); // Skip debounce after step execution
         })
         .catch(error => {
           console.error('Failed to start Step 1:', error);
@@ -1108,9 +1983,14 @@ export default function Products() {
       const clientId = getClientId(user);
       
       productService.executeStep2(productId, clientId)
-        .then(response => {
+        .then(async (response) => {
           console.log('Step 2 started for product:', productId, response.data);
-          fetchProducts();
+          
+          // Log event
+          const product = products.find(p => p.id === productId);
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 2 }, clientId, getUserInfo());
+          
+          fetchProducts(true); // Skip debounce after step execution
         })
         .catch(error => {
           console.error('Failed to start Step 2:', error);
@@ -1182,9 +2062,14 @@ export default function Products() {
       const clientId = getClientId(user);
       
       productService.executeStep3(productId, clientId)
-        .then(response => {
+        .then(async (response) => {
           console.log('Step 3 started for product:', productId, response.data);
-          fetchProducts();
+          
+          // Log event
+          const product = products.find(p => p.id === productId);
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 3 }, clientId, getUserInfo());
+          
+          fetchProducts(true); // Skip debounce after step execution
         })
         .catch(error => {
           console.error('Failed to start Step 3:', error);
@@ -1256,9 +2141,14 @@ export default function Products() {
       const clientId = getClientId(user);
       
       productService.executeStep4(productId, clientId)
-        .then(response => {
+        .then(async (response) => {
           console.log('Step 4 started for product:', productId, response.data);
-          fetchProducts();
+          
+          // Log event
+          const product = products.find(p => p.id === productId);
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 4 }, clientId, getUserInfo());
+          
+          fetchProducts(true); // Skip debounce after step execution
         })
         .catch(error => {
           console.error('Failed to start Step 4:', error);
@@ -1296,6 +2186,100 @@ export default function Products() {
     }
   };
 
+  const handleRerunAll = async (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    
+    try {
+      addNotification({
+        title: 'Re-running All Steps',
+        message: 'Starting complete workflow from Step 0 to Step 4...',
+        type: 'info',
+        productId: productId,
+        productName: product?.name || 'Unknown',
+        step: 0
+      });
+      
+      // Log event
+      const clientId = getClientId(user);
+      await eventLogService.logEvent('step_rerun', productId, product?.name, { step: 'all' }, clientId, getUserInfo());
+
+      // Run steps sequentially: 0 -> 1 -> 2 -> 3 -> 4
+      await handleStartStep0(productId);
+      
+      // Wait for Step 0 to complete (poll status)
+      await waitForStepCompletion(productId, 0);
+      
+      await handleStartStep1(productId);
+      await waitForStepCompletion(productId, 1);
+      
+      await handleStartStep2(productId);
+      await waitForStepCompletion(productId, 2);
+      
+      await handleStartStep3(productId);
+      await waitForStepCompletion(productId, 3);
+      
+      await handleStartStep4(productId);
+      await waitForStepCompletion(productId, 4);
+      
+      addNotification({
+        title: 'All Steps Completed',
+        message: 'Complete workflow finished successfully!',
+        type: 'success',
+        productId: productId,
+        productName: product?.name || 'Unknown',
+        step: 4
+      });
+    } catch (error) {
+      console.error('Failed to complete workflow:', error);
+      addNotification({
+        title: 'Workflow Failed',
+        message: 'One or more steps failed during execution',
+        type: 'error',
+        productId: productId,
+        productName: product?.name || 'Unknown',
+        step: 0
+      });
+    }
+  };
+
+
+  const waitForStepCompletion = async (productId: string, step: number): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const maxAttempts = 120; // 10 minutes max (5 sec intervals)
+      let attempts = 0;
+      
+      const checkStatus = async () => {
+        try {
+          const response = await apiService.getInstance().get(`/api/products?client_id=${getClientId(user)}`);
+          const productData = response.data.data || response.data;
+          const product = productData.find((p: any) => p.id === productId || p._id === productId);
+          
+          if (!product) {
+            reject(new Error('Product not found'));
+            return;
+          }
+          
+          const stepStatus = product[`step${step}Status`]?.toLowerCase();
+          
+          if (stepStatus === 'completed') {
+            resolve();
+          } else if (stepStatus === 'error' || stepStatus === 'failed') {
+            reject(new Error(`Step ${step} failed`));
+          } else if (attempts >= maxAttempts) {
+            reject(new Error(`Step ${step} timeout`));
+          } else {
+            attempts++;
+            setTimeout(checkStatus, 5000); // Check every 5 seconds
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      checkStatus();
+    });
+  };
+
   const handleStopStep = async (productId: string, step: 0 | 1 | 2 | 3 | 4) => {
     const stepKey = `${productId}-step${step}`;
     
@@ -1310,7 +2294,7 @@ export default function Products() {
       });
       
       // Refresh products to get updated status
-      fetchProducts();
+      fetchProducts(true); // Skip debounce after deletion
       
       addNotification({
         title: 'Step Stopped',
@@ -1345,21 +2329,28 @@ export default function Products() {
     setIsDeleting(true);
     
     try {
-      // 1. INSTANT UI UPDATE - Remove from list immediately
-      setProducts(prev => prev.filter(p => p.id !== productIdToDelete));
-      
-      // 2. Close dialog immediately
+      // 1. Close dialog immediately
       setDeleteDialog({ open: false, productId: '', productName: '' });
       
-      // 3. Backend sync in background
-      await productService.delete(productIdToDelete);
+      // 2. Start exit animation
+      setDeletingProductId(productIdToDelete);
+      
+      // 3. Backend sync in background (don't wait)
+      productService.delete(productIdToDelete)
+        .then(async () => {
       console.log('Product deleted:', productIdToDelete);
       
-    } catch (error) {
+      // Log event
+      const clientId = getClientId(user);
+      console.log('🔍 Logging event - product_deleted:', { productIdToDelete, productNameToDelete, clientId });
+          await eventLogService.logEvent('product_deleted', productIdToDelete, productNameToDelete, {}, clientId, getUserInfo());
+        })
+        .catch((error) => {
       console.error('Failed to delete product:', error);
       
-      // 4. ROLLBACK on failure - restore the list
-      fetchProducts();
+          // ROLLBACK on failure - restore the list
+          setDeletingProductId(null);
+      fetchProducts(true); // Skip debounce on error recovery
       
       // Show error notification
       addNotification({
@@ -1370,6 +2361,17 @@ export default function Products() {
         productName: productNameToDelete,
         step: 0
       });
+        });
+      
+      // 4. Wait for animation to complete (300ms), then remove from UI
+      setTimeout(() => {
+        setProducts(prev => prev.filter(p => p.id !== productIdToDelete));
+        setDeletingProductId(null);
+      }, 300);
+      
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      setDeletingProductId(null);
     } finally {
       setIsDeleting(false);
     }
@@ -1407,7 +2409,15 @@ export default function Products() {
   }
 
   return (
-    <div className="min-h-screen bg-dashboard-view-background p-4 md:p-8">
+    <div className="min-h-screen bg-dashboard-view-background">
+      {/* Filter Bar - Full width, directly under Topbar */}
+      <ProductFilterbar
+        activeFilters={activeFilters}
+        onToggleFilter={handleToggleFilter}
+        onClearFilters={handleClearFilters}
+      />
+      
+      <div className="p-4 md:p-8">
       <div className="max-w-7xl space-y-4 md:space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1429,7 +2439,12 @@ export default function Products() {
         </div>
 
         {/* Products List */}
-        {products.length === 0 ? (
+        {!initialLoadComplete ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--dashboard-link-color))]" />
+            <span className="ml-3 text-gray-500">Loading products...</span>
+          </div>
+        ) : products.length === 0 ? (
           <Card className="bg-white border-0">
             <CardContent className="p-12 text-center">
               <p className="text-gray-500 mb-4">No products yet</p>
@@ -1486,10 +2501,23 @@ export default function Products() {
                 step3StatusLower === 'running' || step3StatusLower === 'processing';
               const isStep4Running =
                 step4StatusLower === 'running' || step4StatusLower === 'processing';
-              const canStartStep4 = product.step2Status === 'completed';
+
+              const isBeingDeleted = deletingProductId === product.id;
 
               return (
-              <Card key={product.id} className="bg-white border-0">
+              <Card 
+                key={product.id} 
+                className={`bg-white border-0 transition-all duration-300 ease-out ${
+                  isBeingDeleted 
+                    ? 'opacity-0 scale-95 -translate-x-4 overflow-hidden' 
+                    : 'opacity-100 scale-100 translate-x-0'
+                }`}
+                style={{
+                  maxHeight: isBeingDeleted ? '0px' : 'none',
+                  marginBottom: isBeingDeleted ? '0px' : undefined,
+                  padding: isBeingDeleted ? '0px' : undefined,
+                }}
+              >
                 <CardContent className="p-3 md:p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -1524,6 +2552,24 @@ export default function Products() {
                       </p>
 
                       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 text-sm mb-4">
+                        {/* Categories - show if available from step0Results */}
+                        {product.step0Results?.categories && product.step0Results.categories.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">Categories:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {product.step0Results.categories.slice(0, 3).map((category: string, idx: number) => (
+                                <Badge key={idx} className="bg-blue-100 text-blue-700 border-0 text-xs">
+                                  {category}
+                                </Badge>
+                              ))}
+                              {product.step0Results.categories.length > 3 && (
+                                <Badge className="bg-gray-100 text-gray-600 border-0 text-xs">
+                                  +{product.step0Results.categories.length - 3}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <div>
                           <span className="text-gray-500">Type:</span>
                           <span className="ml-2 text-[hsl(var(--dashboard-link-color))] font-medium">
@@ -1536,6 +2582,18 @@ export default function Products() {
                             {product.markets.join(', ')}
                           </span>
                         </div>
+                        {product.target_audience && product.target_audience.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">Audience:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {product.target_audience.map((audience, idx) => (
+                                <Badge key={idx} className="bg-teal-100 text-teal-700 border-0 text-xs">
+                                  {audience.charAt(0).toUpperCase() + audience.slice(1)}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="mt-4 border-t border-gray-100 pt-4 space-y-4">
                         <div className="grid grid-cols-3 gap-1 md:gap-3 pb-2 w-full">
@@ -1544,7 +2602,7 @@ export default function Products() {
                             <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
                               <div className="min-w-0 w-full">
                                 <p className="text-[9px] md:text-[10px] font-semibold uppercase text-gray-500 truncate">
-                                  Product Details
+                                  Product Data
                                 </p>
                                 <div className="flex items-baseline gap-2">
                                   {product.step0Results?.quality_score !== undefined && product.step0Results.quality_score > 0 ? (
@@ -1560,8 +2618,8 @@ export default function Products() {
                                       <span className="text-[10px] text-gray-400 hidden md:inline">Provided</span>
                                     </>
                                   ) : (
-                                    <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))] truncate">
-                                      {step0Status === 'completed' ? '100%' : step0Status === 'running' ? '-' : step0Status.toUpperCase()}
+                                    <p className="text-sm md:text-2xl font-mono text-gray-500 truncate">
+                                      {step0Status === 'running' ? '-' : step0Status === 'completed' ? 'Pending' : step0Status.toUpperCase()}
                                     </p>
                                   )}
                                 </div>
@@ -1580,14 +2638,10 @@ export default function Products() {
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-1 md:gap-2 mt-1 md:mt-3">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  setExpandedStep(
-                                    isStep0Expanded ? null : { productId: product.id, stepNumber: 0 }
-                                  )
-                                }
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleToggleStep(product.id, 0)}
                                 className="border-0 bg-white text-[hsl(var(--dashboard-link-color))] hover:bg-gray-100 text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                               >
                                 <span className="md:hidden">View</span>
@@ -1610,7 +2664,7 @@ export default function Products() {
                                 <Button
                                   size="sm"
                                   onClick={() => handleStopStep(product.id, 0)}
-                                  className="bg-gray-400 hover:bg-gray-500 text-white p-0 h-6 w-6 md:h-7 md:w-7"
+                                  className="bg-transparent hover:bg-transparent text-black p-0 h-6 w-6 md:h-7 md:w-7"
                                   title="Stop Step 0"
                                 >
                                   ■
@@ -1638,7 +2692,7 @@ export default function Products() {
                                   <Button
                                     size="sm"
                                     onClick={() => handleStopStep(product.id, 1)}
-                                    className="bg-gray-400 hover:bg-gray-500 text-white p-0 h-6 w-6 md:h-7 md:w-7"
+                                    className="bg-transparent hover:bg-transparent text-black p-0 h-6 w-6 md:h-7 md:w-7"
                                     title="Stop Step 1"
                                   >
                                     ■
@@ -1646,172 +2700,773 @@ export default function Products() {
                                 </div>
                               )}
                             </div>
+                            {/* Source Link - Bottom Right of Step 0 box */}
+                            <div className="flex justify-end mt-2">
+                              <button
+                                className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+                                title={(product as any).plmLinked ? "Source Linked" : "Link external source (PLM, BOM, Suppliers etc)"}
+                              >
+                                {(product as any).plmLinked ? (
+                                  <>
+                                    <Link2 className="w-3 h-3" />
+                                    <span>Source Linked</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Link2Off className="w-3 h-3" />
+                                    <span>Source (PLM, BOM, Suppliers etc)</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
 
-                          {/* Step 2 summary */}
+                          {/* Combined Compliance Elements & Updates */}
                           <div className="bg-white border border-gray-100 p-2 md:p-4 h-full overflow-hidden">
                             <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
                               <div className="min-w-0 w-full">
+                                <div className="flex items-center gap-2">
                                 <p className="text-[9px] md:text-[10px] font-semibold uppercase text-gray-500 truncate">
-                                  Compliance Elements
-                                </p>
-                                <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))] truncate">
+                                    Compliance
+                                  </p>
+                                  {(() => {
+                                    const updateCounts = newUpdateCounts.get(product.id);
+                                    const totalNew = (updateCounts?.new || 0) + (updateCounts?.changed || 0);
+                                    if (totalNew > 0) {
+                                      return (
+                                        <Badge className="bg-orange-500 text-white border-0 text-[8px] md:text-[10px] px-1.5 py-0 h-4 animate-pulse">
+                                          {totalNew} new
+                                        </Badge>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                                <div className="flex items-baseline gap-1">
+                                  <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))]">
                                   {complianceElementsCount}
                                 </p>
-                                <p className="hidden md:block text-xs text-gray-500 mt-1">elements identified</p>
+                                  <span className="text-[10px] md:text-sm text-gray-400">elements</span>
+                                  <span className="text-gray-300 mx-1">|</span>
+                                  <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))]">
+                                    {complianceUpdatesCount}
+                                  </p>
+                                  <span className="text-[10px] md:text-sm text-gray-400">updates</span>
                               </div>
-                              <div className="scale-75 origin-top-left md:scale-100 shrink-0">
-                              {getStatusBadge(product.step2Status)}
+                                <p className="hidden md:block text-xs text-gray-500 mt-1">
+                                  {step2StatusLower === 'completed' && step4StatusLower === 'completed' 
+                                    ? 'fully analyzed' 
+                                    : step2StatusLower === 'completed' 
+                                      ? 'elements found, updates pending' 
+                                      : 'pending analysis'}
+                                </p>
+                              </div>
+                              <div className="scale-75 origin-top-left md:scale-100 shrink-0 flex flex-col gap-1">
+                                {getStatusBadge(step2StatusLower === 'completed' && step4StatusLower === 'completed' ? 'completed' : 
+                                  (step2StatusLower === 'running' || step4StatusLower === 'running' || isStep3Running) ? 'running' :
+                                  step2StatusLower === 'error' || step4StatusLower === 'error' ? 'error' : 'pending')}
                             </div>
                             </div>
                             <div className="flex flex-wrap gap-1 md:gap-2 mt-1 md:mt-3">
+                              {/* View Elements button */}
                               {step2StatusLower === 'completed' && (
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() =>
-                                    setExpandedStep(
-                                      isStep2Expanded ? null : { productId: product.id, stepNumber: 2 }
-                                    )
-                                  }
-                                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] hover:bg-gray-200 text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                                  onClick={() => handleToggleStep(product.id, 2)}
+                                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] hover:bg-gray-200 text-[10px] md:text-xs px-2 h-6 md:h-8"
                                 >
-                                  <span className="md:hidden">View</span>
+                                  <span className="md:hidden">Elements</span>
                                   <span className="hidden md:inline">{isStep2Expanded ? 'Hide elements' : 'View elements'}</span>
                                 </Button>
                               )}
-                              {isStep2Running && (
+                              {/* View Updates button */}
+                              {step4StatusLower === 'completed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleToggleStep(product.id, 4)}
+                                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] hover:bg-gray-200 text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                >
+                                  <span className="md:hidden">Updates</span>
+                                  <span className="hidden md:inline">{isStep4Expanded ? 'Hide updates' : 'View updates'}</span>
+                                </Button>
+                              )}
+                              {/* Running states */}
+                              {(isStep2Running || isStep3Running || isStep4Running) && (
                                 <div className="flex items-center gap-1">
-                                  <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
+                                  <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7">
                                     <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
                                     <span className="md:hidden">Running...</span>
-                                    <span className="hidden md:inline">Finding elements...</span>
+                                    <span className="hidden md:inline">
+                                      {isStep2Running ? 'Finding elements...' : isStep3Running ? 'Finding sources...' : 'Generating updates...'}
+                                    </span>
                                   </Button>
                                   <Button
                                     size="sm"
-                                    onClick={() => handleStopStep(product.id, 2)}
-                                    className="bg-gray-400 hover:bg-gray-500 text-white p-0 h-6 w-6 md:h-7 md:w-7"
-                                    title="Stop Step 2"
+                                    onClick={() => handleStopStep(product.id, isStep2Running ? 2 : isStep3Running ? 3 : 4)}
+                                    className="bg-transparent hover:bg-transparent text-black p-0 h-6 w-6 md:h-7 md:w-7"
+                                    title="Stop"
                                   >
                                     ■
                                   </Button>
                                 </div>
                               )}
-                              {!isStep2Running && step2StatusLower !== 'completed' && (
+                              {/* Start buttons when not running and not complete */}
+                              {!isStep2Running && !isStep3Running && !isStep4Running && step2StatusLower !== 'completed' && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStartStep2(product.id)}
                                   disabled={isExecutingStep2}
-                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
                                 >
                                   {isExecutingStep2 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                                  {isExecutingStep2 ? (
-                                    <>
-                                      <span className="md:hidden">Starting...</span>
-                                      <span className="hidden md:inline">Starting...</span>
-                                    </>
-                                  ) : step2StatusLower === 'error' ? (
-                                    <>
-                                      <span className="md:hidden">Retry</span>
-                                      <span className="hidden md:inline">Retry compliance elements</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className="md:hidden">Find</span>
-                                      <span className="hidden md:inline">Find compliance elements</span>
-                                    </>
-                                  )}
+                                  <span className="md:hidden">{isExecutingStep2 ? '...' : 'Start'}</span>
+                                  <span className="hidden md:inline">{isExecutingStep2 ? 'Starting...' : 'Find compliance elements'}</span>
+                                </Button>
+                              )}
+                              {!isStep2Running && !isStep3Running && !isStep4Running && step2StatusLower === 'completed' && step4StatusLower !== 'completed' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStartStep3(product.id)}
+                                  disabled={isExecutingStep3}
+                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8"
+                                >
+                                  {isExecutingStep3 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                                  <span className="md:hidden">{isExecutingStep3 ? '...' : 'Updates'}</span>
+                                  <span className="hidden md:inline">{isExecutingStep3 ? 'Starting...' : 'Generate updates'}</span>
                                 </Button>
                               )}
                             </div>
                           </div>
 
-                          {/* Step 4 summary */}
+                          {/* Requirements (Pro Feature) */}
                           <div className="bg-white border border-gray-100 p-2 md:p-4 h-full overflow-hidden">
                             <div className="flex flex-col md:flex-row items-start justify-between gap-1 md:gap-2 mb-2 md:mb-0">
                               <div className="min-w-0 w-full">
                                 <p className="text-[9px] md:text-[10px] font-semibold uppercase text-gray-500 truncate">
-                                  Compliance Updates
+                                  Requirements
                                 </p>
-                                <p className="text-sm md:text-2xl font-mono text-[hsl(var(--dashboard-link-color))] truncate">
-                                  {complianceUpdatesCount}
+                                <p className="text-sm md:text-2xl font-mono text-gray-300 truncate">
+                                  -
                                 </p>
-                                <p className="hidden md:block text-xs text-gray-500 mt-1">updates tracked</p>
+                                <p className="hidden md:block text-xs text-gray-400 mt-1">available on Pro plan</p>
                               </div>
                               <div className="scale-75 origin-top-left md:scale-100 shrink-0">
-                                {getStatusBadge(product.step4Status)}
+                                <Badge className="bg-slate-100 text-slate-600 border-0">
+                                  Pro
+                                </Badge>
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-1 md:gap-2 mt-1 md:mt-3">
-                              {step4StatusLower === 'completed' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    setExpandedStep(
-                                      isStep4Expanded ? null : { productId: product.id, stepNumber: 4 }
-                                    )
-                                  }
-                                  className="border-0 bg-dashboard-view-background text-[hsl(var(--dashboard-link-color))] hover:bg-gray-200 text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
-                                >
-                                  <span className="md:hidden">View</span>
-                                  <span className="hidden md:inline">{isStep4Expanded ? 'Hide updates' : 'View updates'}</span>
-                                </Button>
-                              )}
-                              {!canStartStep4 ? (
-                                <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto truncate" title="Run compliance elements first">
-                                  <span className="md:hidden">Wait for Step 2</span>
-                                  <span className="hidden md:inline">Run compliance elements first</span>
-                                </Button>
-                              ) : (isStep3Running || isStep4Running) ? (
-                                <div className="flex items-center gap-1">
-                                  <Button size="sm" disabled className="text-[10px] md:text-xs px-2 h-6 md:h-7 w-full md:w-auto">
-                                    <Loader2 className="w-3 h-3 mr-1 md:mr-2 animate-spin" />
-                                    <span className="md:hidden">Running...</span>
-                                    <span className="hidden md:inline">Generating updates...</span>
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleStopStep(product.id, isStep3Running ? 3 : 4)}
-                                    className="bg-gray-400 hover:bg-gray-500 text-white p-0 h-6 w-6 md:h-7 md:w-7"
-                                    title={`Stop Step ${isStep3Running ? '3' : '4'}`}
-                                  >
-                                    ■
-                                  </Button>
-                                </div>
-                              ) : step4StatusLower !== 'completed' ? (
                                 <Button
                                   size="sm"
-                                  onClick={() => handleStartStep3(product.id)}
-                                  disabled={isExecutingStep3}
-                                  className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
+                                  onClick={() => window.location.href = '/billing'}
+                                  className="border-0 bg-slate-600 hover:bg-slate-700 text-white text-[10px] md:text-xs px-2 h-6 md:h-8 w-full md:w-auto"
                                 >
-                                  {isExecutingStep3 && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                                  {isExecutingStep3 ? (
-                                    <>
-                                      <span className="md:hidden">Starting...</span>
-                                      <span className="hidden md:inline">Starting...</span>
-                                    </>
-                                  ) : step4StatusLower === 'error' ? (
-                                    <>
-                                      <span className="md:hidden">Retry</span>
-                                      <span className="hidden md:inline">Retry updates</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className="md:hidden">Generate</span>
-                                      <span className="hidden md:inline">Generate compliance updates</span>
-                                    </>
-                                  )}
+                                <span className="md:hidden">Upgrade</span>
+                                <span className="hidden md:inline">Upgrade to Pro</span>
                                 </Button>
-                              ) : null}
                             </div>
                           </div>
                         </div>
 
                         {/* Expandable Step 0 Results */}
-                        {isStep0Expanded && product.step0Results && (
+                        {isStep0Expanded && loadingStepDetails.has(`${product.id}-step0`) && (
+                          <div className="ml-0 md:ml-6 mt-2 p-8 bg-white flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--dashboard-link-color))]" />
+                            <span className="ml-3 text-gray-500">Loading step details...</span>
+                          </div>
+                        )}
+                        {isStep0Expanded && !loadingStepDetails.has(`${product.id}-step0`) && product.step0Results && (
                             <div className="ml-0 md:ml-6 mt-2 space-y-4">
+                              {/* How to Improve Comprehensiveness - At Top */}
+                              {editingStep0?.productId !== product.id && (product.step0Results?.quality_score !== undefined && product.step0Results.quality_score < 100) && (
+                                <div className="bg-amber-50 border border-amber-200 p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h5 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))] flex items-center gap-2">
+                                      <Info className="w-4 h-4 text-amber-600" />
+                                      How to Improve Comprehensiveness
+                                    </h5>
+                                    <Badge className={`font-mono font-bold border-0 ${
+                                      product.step0Results.quality_score >= 70 ? 'bg-green-100 text-green-700' :
+                                      product.step0Results.quality_score >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-red-100 text-red-700'
+                                    }`}>
+                                      {product.step0Results.quality_score}% Complete
+                                    </Badge>
+                                  </div>
+                                  
+                                  {/* Component-specific missing information - use backend data if available */}
+                                  {(() => {
+                                    const components = product.components || [];
+                                    const backendCompleteness = product.step0Results?.component_completeness || [];
+                                    
+                                    // PRIORITY 1: Use backend's component_completeness if available (AI-generated)
+                                    if (backendCompleteness.length > 0) {
+                                      // Filter to only show components that need improvement (< 70%)
+                                      const incompleteComponents = backendCompleteness
+                                        .filter((cc: any) => cc.completeness_percentage < 70)
+                                        .sort((a: any, b: any) => a.completeness_percentage - b.completeness_percentage);
+                                      
+                                      if (incompleteComponents.length > 0) {
+                                        return (
+                                          <div className="space-y-3">
+                                            {incompleteComponents.map((cc: any, idx: number) => (
+                                              <div key={idx} className="bg-white p-3 border border-amber-100">
+                                                <div className="flex items-center justify-between mb-2">
+                                                  <span className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                                    {cc.component_name}
+                                                  </span>
+                                                  <Badge className={`text-[10px] font-mono border-0 ${
+                                                    cc.completeness_percentage >= 70 ? 'bg-green-100 text-green-700' :
+                                                    cc.completeness_percentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-red-100 text-red-700'
+                                                  }`}>
+                                                    {cc.completeness_percentage}%
+                                                  </Badge>
+                                                </div>
+                                                {cc.missing_details && (
+                                                  <div className="space-y-1">
+                                                    <p className="text-xs text-gray-600 mb-1">Missing:</p>
+                                                    <p className="text-xs text-gray-700">{cc.missing_details}</p>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      } else {
+                                        // All components from AI are >= 70%
+                                        return (
+                                          <p className="text-xs text-gray-600">Component details look good. Add more technical specifications to improve accuracy.</p>
+                                        );
+                                      }
+                                    }
+                                    
+                                    // PRIORITY 2: Fallback - generate our own assessment from component data
+                                    const missingByComponent: { name: string; missing: string[]; percentage: number }[] = [];
+                                    
+                                    // Helper to generate specific suggestions based on product type
+                                    const getSpecificSuggestions = (compName: string, existingSpecs: string[]): string[] => {
+                                      const suggestions: string[] = [];
+                                      const nameLower = compName.toLowerCase();
+                                      const existingLower = existingSpecs.map(s => s.toLowerCase());
+                                      
+                                      // Common specs needed for compliance
+                                      const commonSpecs = [
+                                        { key: 'weight', example: 'Weight (e.g., 450g, 1.2kg)' },
+                                        { key: 'dimension', example: 'Dimensions (e.g., 26cm x 26cm x 2cm)' },
+                                        { key: 'diameter', example: 'Diameter (e.g., 26cm)' },
+                                        { key: 'height', example: 'Height (e.g., 2.5cm)' },
+                                        { key: 'thickness', example: 'Thickness (e.g., 3mm)' },
+                                        { key: 'volume', example: 'Volume/Capacity (e.g., 500ml)' },
+                                        { key: 'color', example: 'Color (e.g., White, Glazed)' },
+                                      ];
+                                      
+                                      // Product-specific suggestions
+                                      if (nameLower.includes('plate') || nameLower.includes('dish') || nameLower.includes('bowl')) {
+                                        if (!existingLower.some(s => s.includes('diameter'))) suggestions.push('Diameter (e.g., 26cm)');
+                                        if (!existingLower.some(s => s.includes('depth') || s.includes('height'))) suggestions.push('Depth/Height (e.g., 2.5cm)');
+                                        if (!existingLower.some(s => s.includes('weight'))) suggestions.push('Weight (e.g., 450g)');
+                                        if (!existingLower.some(s => s.includes('food') || s.includes('safe'))) suggestions.push('Food-safe certification');
+                                        if (!existingLower.some(s => s.includes('temperature') || s.includes('microwave') || s.includes('dishwasher'))) {
+                                          suggestions.push('Temperature resistance / Microwave-safe / Dishwasher-safe');
+                                        }
+                                      } else if (nameLower.includes('cup') || nameLower.includes('mug') || nameLower.includes('glass')) {
+                                        if (!existingLower.some(s => s.includes('capacity') || s.includes('volume'))) suggestions.push('Capacity (e.g., 350ml)');
+                                        if (!existingLower.some(s => s.includes('height'))) suggestions.push('Height (e.g., 10cm)');
+                                        if (!existingLower.some(s => s.includes('diameter'))) suggestions.push('Rim diameter (e.g., 8cm)');
+                                      } else if (nameLower.includes('porcelain') || nameLower.includes('ceramic')) {
+                                        if (!existingLower.some(s => s.includes('glaze'))) suggestions.push('Glaze type (e.g., Lead-free glaze)');
+                                        if (!existingLower.some(s => s.includes('firing') || s.includes('temperature'))) suggestions.push('Firing temperature (e.g., 1280C)');
+                                      }
+                                      
+                                      // Add common specs if still missing
+                                      if (suggestions.length < 3) {
+                                        commonSpecs.forEach(spec => {
+                                          if (!existingLower.some(s => s.includes(spec.key)) && !suggestions.some(s => s.toLowerCase().includes(spec.key))) {
+                                            suggestions.push(spec.example);
+                                          }
+                                        });
+                                      }
+                                      
+                                      return suggestions.slice(0, 4); // Max 4 suggestions
+                                    };
+                                    
+                                    components.forEach((comp: any) => {
+                                      const missing: string[] = [];
+                                      
+                                      // Check materials
+                                      const mats = Array.isArray(comp.materials) ? comp.materials : 
+                                        typeof comp.materials === 'string' && comp.materials ? 
+                                        comp.materials.split(',').map((m: string) => m.trim()).filter(Boolean) : [];
+                                      const validMats = mats.filter((m: string) => m && m.toLowerCase() !== 'not specified');
+                                      if (validMats.length === 0) {
+                                        // Be specific about what materials to provide
+                                        const nameLower = (comp.name || '').toLowerCase();
+                                        if (nameLower.includes('porcelain') || nameLower.includes('ceramic')) {
+                                          missing.push('Materials (e.g., Porcelain type, Glaze composition, Clay body)');
+                                        } else if (nameLower.includes('metal') || nameLower.includes('steel')) {
+                                          missing.push('Materials (e.g., Stainless Steel 304, Aluminum alloy grade)');
+                                        } else if (nameLower.includes('plastic') || nameLower.includes('polymer')) {
+                                          missing.push('Materials (e.g., PP, ABS, food-grade HDPE)');
+                                        } else {
+                                          missing.push('Materials (e.g., specific composition, grade, certifications)');
+                                        }
+                                      }
+                                      
+                                      // Check description
+                                      if (!comp.description || comp.description.trim().length < 20) {
+                                        missing.push('Detailed description (what it is, how it works, key features)');
+                                      }
+                                      
+                                      // Check function
+                                      if (!comp.function || comp.function.trim().length < 10) {
+                                        missing.push('Component function/purpose (what role does it serve?)');
+                                      }
+                                      
+                                      // Check technical specifications - be specific about what's missing
+                                      const specs = comp.technical_specifications || {};
+                                      const specKeys = Object.keys(specs);
+                                      const validSpecs = specKeys.filter(k => {
+                                        const val = String(specs[k] || '').toLowerCase();
+                                        return val && val !== 'not specified' && val !== 'n/a' && val !== 'unknown' && val !== '';
+                                      });
+                                      
+                                      // Need at least 3 valid specs for compliance - be SPECIFIC about which ones
+                                      if (validSpecs.length < 3) {
+                                        const specificSuggestions = getSpecificSuggestions(comp.name || '', validSpecs);
+                                        if (specificSuggestions.length > 0) {
+                                          specificSuggestions.forEach(suggestion => {
+                                            missing.push(suggestion);
+                                          });
+                                        } else {
+                                          missing.push('Weight (e.g., 450g)');
+                                          missing.push('Dimensions (e.g., Length x Width x Height)');
+                                        }
+                                      }
+                                      
+                                      // Calculate percentage
+                                      const totalFields = 4; // materials, description, function, specs
+                                      const filledFields = totalFields - Math.min(missing.length, totalFields);
+                                      const percentage = Math.round((filledFields / totalFields) * 100);
+                                      
+                                      // Add ALL components if overall score < 70%, otherwise only incomplete ones
+                                      const qualityScore = product.step0Results?.quality_score ?? 0;
+                                      if (qualityScore < 70 || missing.length > 0) {
+                                        // If no missing items but score < 70%, add specific enhancement suggestions
+                                        if (missing.length === 0) {
+                                          const enhancementSuggestions = getSpecificSuggestions(comp.name || '', validSpecs);
+                                          if (enhancementSuggestions.length > 0) {
+                                            missing.push(...enhancementSuggestions.slice(0, 2));
+                                          } else {
+                                            missing.push('Add safety certifications (e.g., CE, FDA, food-contact safe)');
+                                            missing.push('Add country of origin / Manufacturing details');
+                                          }
+                                        }
+                                        
+                                        missingByComponent.push({
+                                          name: comp.name || 'Unnamed Component',
+                                          missing: missing,
+                                          percentage: percentage
+                                        });
+                                      }
+                                    });
+                                    
+                                    // Sort by percentage (lowest first)
+                                    missingByComponent.sort((a, b) => a.percentage - b.percentage);
+                                    
+                                    if (missingByComponent.length > 0) {
+                                      return (
+                                        <div className="space-y-3">
+                                          {missingByComponent.map((comp, idx) => (
+                                            <div key={idx} className="bg-white p-3 border border-amber-100">
+                                              <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                                  {comp.name}
+                                                </span>
+                                                <Badge className={`text-[10px] font-mono border-0 ${
+                                                  comp.percentage >= 70 ? 'bg-green-100 text-green-700' :
+                                                  comp.percentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                                  'bg-red-100 text-red-700'
+                                                }`}>
+                                                  {comp.percentage}%
+                                                </Badge>
+                                              </div>
+                                              <div className="space-y-1">
+                                                {comp.missing.map((item, itemIdx) => (
+                                                  <div key={itemIdx} className="flex items-start gap-2 text-xs text-gray-700">
+                                                    <div className="w-4 h-4 border border-gray-300 bg-white shrink-0 mt-0.5" />
+                                                    <span>{item}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      );
+                                    } else if (components.length === 0) {
+                                      // No components at all
+                                      return (
+                                        <div className="space-y-1">
+                                          <p className="text-xs text-gray-600 mb-2">No components found. Add product components with:</p>
+                                          <div className="flex items-start gap-2 text-xs text-gray-700">
+                                            <div className="w-4 h-4 border border-gray-300 bg-white shrink-0 mt-0.5" />
+                                            <span>Component names and descriptions</span>
+                                          </div>
+                                          <div className="flex items-start gap-2 text-xs text-gray-700">
+                                            <div className="w-4 h-4 border border-gray-300 bg-white shrink-0 mt-0.5" />
+                                            <span>Materials used in each component</span>
+                                          </div>
+                                          <div className="flex items-start gap-2 text-xs text-gray-700">
+                                            <div className="w-4 h-4 border border-gray-300 bg-white shrink-0 mt-0.5" />
+                                            <span>Technical specifications (weight, dimensions)</span>
+                                          </div>
+                                        </div>
+                                      );
+                                    } else {
+                                      // All components look complete
+                                      return (
+                                        <p className="text-xs text-gray-600">Component details look good. Add more technical specifications to improve accuracy.</p>
+                                      );
+                                    }
+                                  })()}
+                                  
+                                  <p className="text-[10px] text-amber-700 mt-3 pt-2 border-t border-amber-200">
+                                    Use the Data Ingestion section below to add this information, then click "Save & Re-run Analysis"
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Data Ingestion Section */}
+                              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <Upload className="w-4 h-4 text-blue-600" />
+                                    <h5 className="text-sm font-bold text-[hsl(var(--dashboard-link-color))]">
+                                      Data Ingestion
+                                    </h5>
+                                  </div>
+                                  {dataIngestion?.productId !== product.id && (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleStartDataIngestion(product.id)}
+                                      className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-xs h-7"
+                                    >
+                                      <Plus className="w-3 h-3 mr-1" />
+                                      Add Information
+                                </Button>
+                                  )}
+                                </div>
+                                
+                                {dataIngestion?.productId === product.id ? (
+                                  <div className="space-y-4">
+                                    {/* Free Text Input */}
+                                    <div>
+                                      <Label className="text-xs font-semibold text-gray-600 mb-1 block">
+                                        <FileText className="w-3 h-3 inline mr-1" />
+                                        Additional Product Information
+                                      </Label>
+                                      <textarea
+                                        value={dataIngestion.freeText}
+                                        onChange={(e) => setDataIngestion({ ...dataIngestion, freeText: e.target.value })}
+                                        className="w-full text-xs text-gray-700 bg-white border border-gray-200 p-3 min-h-[100px]"
+                                        placeholder="Enter any additional product details, specifications, technical data, certifications, or other relevant information that should be considered in the analysis..."
+                                      />
+                                    </div>
+                                    
+                                    {/* Source URLs */}
+                                    <div>
+                                      <Label className="text-xs font-semibold text-gray-600 mb-1 block">
+                                        <LinkIcon className="w-3 h-3 inline mr-1" />
+                                        Reference Sources
+                                      </Label>
+                                      <div className="space-y-2">
+                                        {dataIngestion.sourceUrls.map((url, idx) => (
+                                          <div key={idx} className="flex items-center gap-2 bg-white p-2 border border-gray-200">
+                                            <ExternalLink className="w-3 h-3 text-gray-400 shrink-0" />
+                                            <a 
+                                              href={url} 
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="text-xs text-blue-600 hover:underline flex-1 truncate"
+                                            >
+                                              {url}
+                                            </a>
+                                            <button
+                                              onClick={() => handleRemoveSourceUrl(idx)}
+                                              className="text-red-500 hover:text-red-700 shrink-0"
+                                            >
+                                              <XCircle className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        ))}
+                                        <div className="flex gap-2">
+                                          <Input
+                                            type="url"
+                                            value={dataIngestion.newSourceUrl}
+                                            onChange={(e) => setDataIngestion({ ...dataIngestion, newSourceUrl: e.target.value })}
+                                            placeholder="https://example.com/product-documentation"
+                                            className="flex-1 text-xs border-gray-200 bg-white h-8"
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleAddSourceUrl();
+                                              }
+                                            }}
+                                          />
+                                  <Button
+                                    size="sm"
+                                            onClick={handleAddSourceUrl}
+                                            disabled={!dataIngestion.newSourceUrl.trim()}
+                                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs h-8"
+                                          >
+                                            Add
+                                  </Button>
+                                </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Upload Documents */}
+                                    <div>
+                                      <Label className="text-xs font-semibold text-gray-600 mb-1 block">
+                                        <File className="w-3 h-3 inline mr-1" />
+                                        Upload Documents
+                                      </Label>
+                                      <input
+                                        ref={documentInputRef}
+                                        type="file"
+                                        multiple
+                                        accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.csv"
+                                        onChange={handleDocumentUpload}
+                                        className="hidden"
+                                      />
+                                      <div className="space-y-2">
+                                        {dataIngestion.uploadedDocuments.map((doc, idx) => (
+                                          <div key={idx} className="flex items-center gap-2 bg-white p-2 border border-gray-200">
+                                            <File className="w-3 h-3 text-blue-500 shrink-0" />
+                                            <span className="text-xs text-gray-700 flex-1 truncate">{doc.name}</span>
+                                            <span className="text-[10px] text-gray-400">{(doc.size / 1024).toFixed(1)} KB</span>
+                                            <button
+                                              onClick={() => handleRemoveDocument(idx)}
+                                              className="text-red-500 hover:text-red-700 shrink-0"
+                                            >
+                                              <XCircle className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        ))}
+                                <Button
+                                  size="sm"
+                                          variant="outline"
+                                          onClick={() => documentInputRef.current?.click()}
+                                          className="w-full text-xs h-8 border-dashed border-gray-300 bg-white hover:bg-gray-50"
+                                        >
+                                          <Upload className="w-3 h-3 mr-1" />
+                                          Upload PDF, Word, Excel, or Text files
+                                        </Button>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Upload Images */}
+                                    <div>
+                                      <Label className="text-xs font-semibold text-gray-600 mb-1 block">
+                                        <Image className="w-3 h-3 inline mr-1" />
+                                        Upload Images
+                                      </Label>
+                                      <input
+                                        ref={imageInputRef}
+                                        type="file"
+                                        multiple
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                        className="hidden"
+                                      />
+                                      <div className="space-y-2">
+                                        {dataIngestion.uploadedImages.length > 0 && (
+                                          <div className="flex flex-wrap gap-2">
+                                            {dataIngestion.uploadedImages.map((img, idx) => (
+                                              <div key={idx} className="relative group">
+                                                {img.preview ? (
+                                                  <img
+                                                    src={img.preview}
+                                                    alt={img.name}
+                                                    className="w-16 h-16 object-cover border border-gray-200"
+                                                  />
+                                                ) : (
+                                                  <div className="w-16 h-16 bg-gray-100 border border-gray-200 flex items-center justify-center">
+                                                    <Image className="w-6 h-6 text-gray-400" />
+                                                  </div>
+                                                )}
+                                                <button
+                                                  onClick={() => handleRemoveImage(idx)}
+                                                  className="absolute -top-1.5 -right-1.5 bg-red-500 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                  <XCircle className="w-3 h-3" />
+                                                </button>
+                                                <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] truncate px-1">
+                                                  {img.name}
+                                                </span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => imageInputRef.current?.click()}
+                                          className="w-full text-xs h-8 border-dashed border-gray-300 bg-white hover:bg-gray-50"
+                                        >
+                                          <Image className="w-3 h-3 mr-1" />
+                                          Upload product images
+                                </Button>
+                            </div>
+                          </div>
+                                    
+                                    {/* Quick Capture Options */}
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          // TODO: Implement camera capture
+                                          console.log('Camera capture clicked');
+                                        }}
+                                        className="flex-1 text-xs h-8 border-dashed border-gray-300 bg-white hover:bg-gray-50"
+                                      >
+                                        <Camera className="w-3 h-3 mr-1" />
+                                        Take Photo
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          // TODO: Implement voice recording & transcription
+                                          console.log('Voice note clicked');
+                                        }}
+                                        className="flex-1 text-xs h-8 border-dashed border-gray-300 bg-white hover:bg-gray-50"
+                                      >
+                                        <Mic className="w-3 h-3 mr-1" />
+                                        Voice Note
+                                      </Button>
+                        </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex justify-end gap-2 pt-2 border-t border-blue-100">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleCancelDataIngestion}
+                                        disabled={savingDataIngestion}
+                                        className="text-xs h-7 border-gray-300"
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={handleSaveDataIngestion}
+                                        disabled={savingDataIngestion}
+                                        className="bg-gray-600 hover:bg-gray-700 text-white text-xs h-7"
+                                      >
+                                        {savingDataIngestion ? (
+                                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                        ) : null}
+                                        Save
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={handleSaveAndRerunWithDataIngestion}
+                                        disabled={savingDataIngestion}
+                                        className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-xs h-7"
+                                      >
+                                        {savingDataIngestion ? (
+                                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                        ) : (
+                                          <Play className="w-3 h-3 mr-1" />
+                                        )}
+                                        Save & Re-run Analysis
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    {/* Display existing data ingestion if any - but NOT while step0 is running (it's being processed) */}
+                                    {product.step0Status !== 'running' && (
+                                     (product as any).dataIngestion?.freeText || 
+                                     (product as any).dataIngestion?.sourceUrls?.length > 0 ||
+                                     (product as any).dataIngestion?.uploadedDocuments?.length > 0 ||
+                                     (product as any).dataIngestion?.uploadedImages?.length > 0) ? (
+                                      <div className="space-y-3">
+                                        {(product as any).dataIngestion?.freeText && (
+                                          <div>
+                                            <p className="text-xs text-gray-500 mb-1">Additional Information:</p>
+                                            <p className="text-xs text-gray-700 bg-white p-2 border border-gray-100 whitespace-pre-wrap">
+                                              {(product as any).dataIngestion.freeText.length > 200 
+                                                ? (product as any).dataIngestion.freeText.substring(0, 200) + '...' 
+                                                : (product as any).dataIngestion.freeText}
+                                            </p>
+                          </div>
+                        )}
+                                        {(product as any).dataIngestion?.sourceUrls?.length > 0 && (
+                                          <div>
+                                            <p className="text-xs text-gray-500 mb-1">
+                                              <LinkIcon className="w-3 h-3 inline mr-1" />
+                                              Reference Sources: {(product as any).dataIngestion.sourceUrls.length}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {(product as any).dataIngestion?.uploadedDocuments?.length > 0 && (
+                                          <div>
+                                            <p className="text-xs text-gray-500 mb-1">
+                                              <File className="w-3 h-3 inline mr-1" />
+                                              Documents: {(product as any).dataIngestion.uploadedDocuments.length} file(s)
+                                            </p>
+                                            <div className="flex flex-wrap gap-1">
+                                              {(product as any).dataIngestion.uploadedDocuments.slice(0, 3).map((doc: any, idx: number) => (
+                                                <Badge key={idx} className="bg-blue-50 text-blue-700 border-0 text-[10px]">
+                                                  {doc.name}
+                                                </Badge>
+                                              ))}
+                                              {(product as any).dataIngestion.uploadedDocuments.length > 3 && (
+                                                <Badge className="bg-gray-100 text-gray-600 border-0 text-[10px]">
+                                                  +{(product as any).dataIngestion.uploadedDocuments.length - 3} more
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                        {(product as any).dataIngestion?.uploadedImages?.length > 0 && (
+                                          <div>
+                                            <p className="text-xs text-gray-500 mb-1">
+                                              <Image className="w-3 h-3 inline mr-1" />
+                                              Images: {(product as any).dataIngestion.uploadedImages.length} image(s)
+                                            </p>
+                                          </div>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleStartDataIngestion(product.id)}
+                                          className="text-xs h-6 border-gray-300"
+                                        >
+                                          <Edit className="w-3 h-3 mr-1" />
+                                          Edit
+                                        </Button>
+                                      </div>
+                                    ) : product.step0Status === 'running' ? (
+                                      <div className="flex items-center gap-2 text-xs text-blue-600">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span>Processing ingested data and updating product data...</span>
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-gray-500 italic">
+                                        Add additional product information, upload documents/images, or add reference links to enhance the analysis.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              
                               {/* Edit Controls - Fixed at top right */}
                               <div className="flex justify-end mb-2">
                                 {editingStep0?.productId === product.id ? (
@@ -1823,9 +3478,17 @@ export default function Products() {
                                         handleSaveStep0(product.id);
                                   }}
                                       size="sm"
+                                      disabled={savingStep0}
                                       className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white text-xs px-3 py-1.5 h-7"
                                 >
-                                      Save
+                                      {savingStep0 ? (
+                                        <>
+                                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                          Saving...
+                                        </>
+                                      ) : (
+                                        'Save'
+                                      )}
                                 </Button>
                                 <Button
                                   onClick={(e) => {
@@ -1835,6 +3498,7 @@ export default function Products() {
                                   }}
                                       size="sm"
                                       variant="outline"
+                                      disabled={savingStep0}
                                       className="text-xs px-3 py-1.5 h-7"
                                 >
                                       Cancel
@@ -1864,7 +3528,7 @@ export default function Products() {
                               <div className="space-y-3">
                                 {/* Categories - First */}
                                 {((editingStep0?.productId === product.id) || 
-                                  (!editingStep0 && product.step0Results.categories && product.step0Results.categories.length > 0)) && (
+                                  (editingStep0?.productId !== product.id && product.step0Results.categories && product.step0Results.categories.length > 0)) && (
                                   <div className="relative">
                                     <div className="flex items-center justify-between mb-2">
                                       <h6 className="text-xs font-semibold text-gray-600">Categories</h6>
@@ -1922,7 +3586,7 @@ export default function Products() {
                                 
                                 {/* Materials - Second */}
                                 {((editingStep0?.productId === product.id) || 
-                                  (!editingStep0 && product.step0Results.materials && product.step0Results.materials.length > 0)) && (
+                                  (editingStep0?.productId !== product.id && product.step0Results.materials && product.step0Results.materials.length > 0)) && (
                                   <div className="relative">
                                     <div className="flex items-center justify-between mb-2">
                                       <h6 className="text-xs font-semibold text-gray-600">Materials</h6>
@@ -1930,7 +3594,7 @@ export default function Products() {
                                         <div className="flex gap-1">
                                           <button
                                             onClick={handleAddMaterial}
-                                            className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 hover:bg-purple-200 border-0"
+                                            className="text-xs px-2 py-0.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border-0"
                                             title="Add material"
                                           >
                                             + Add
@@ -1955,18 +3619,18 @@ export default function Products() {
                                             type="text"
                                             value={material}
                                             onChange={(e) => handleUpdateMaterial(idx, e.target.value)}
-                                            className="text-xs px-2 py-1 bg-purple-100 text-purple-700 border border-purple-300 rounded min-w-[100px]"
+                                            className="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-300 rounded min-w-[100px]"
                                             placeholder="Material name"
                                           />
                                         ) : (
                                         <Badge 
                                           key={idx} 
-                                          className="bg-purple-100 text-purple-700 border-0 flex items-center gap-1 pr-1"
+                                          className="bg-slate-100 text-slate-700 border-0 flex items-center gap-1 pr-1"
                                         >
                                           {material}
                                           <button
                                             onClick={() => handleRemoveMaterial(product.id, material)}
-                                            className="ml-1 hover:bg-purple-200 p-0.5"
+                                            className="ml-1 hover:bg-slate-200 p-0.5"
                                             title="Remove material"
                                           >
                                             ✕
@@ -1981,7 +3645,7 @@ export default function Products() {
 
                               {/* Product Overview */}
                               {((editingStep0?.productId === product.id) || 
-                                (!editingStep0 && (product.step0Results.product_overview || product.description))) && (
+                                (editingStep0?.productId !== product.id && (product.step0Results.product_overview || product.description))) && (
                                 <div className="relative">
                                 <div className="flex items-center justify-between mb-2">
                                   <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
@@ -2020,12 +3684,32 @@ export default function Products() {
 
                               {/* Components */}
                               {((editingStep0?.productId === product.id) || 
-                                (!editingStep0 && product.components && product.components.length > 0)) && (
+                                (editingStep0?.productId !== product.id && product.components && product.components.length > 0)) && (
                                 <div className="relative">
                                   <div className="flex items-center justify-between mb-2">
                                     <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
                                       Components ({(editingStep0?.productId === product.id ? step0EditData?.components : product.components)?.length || 0})
                                   </h5>
+                                    <div className="flex items-center gap-2">
+                                      {/* Expand/Collapse All buttons - only show in view mode and when > 1 component */}
+                                      {editingStep0?.productId !== product.id && product.components && product.components.length > 1 && (
+                                        <div className="flex gap-1">
+                                          <button
+                                            onClick={() => toggleAllComponents(product.id, product.components || [], true)}
+                                            className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 hover:bg-gray-200 border-0"
+                                            title="Expand all components"
+                                          >
+                                            Expand All
+                                          </button>
+                                          <button
+                                            onClick={() => toggleAllComponents(product.id, product.components || [], false)}
+                                            className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 hover:bg-gray-200 border-0"
+                                            title="Collapse all components"
+                                          >
+                                            Collapse All
+                                          </button>
+                                        </div>
+                                      )}
                                     {editingStep0?.productId === product.id && (
                                       <div className="flex gap-1">
                                         <button
@@ -2063,9 +3747,55 @@ export default function Products() {
                                       </div>
                                     )}
                                   </div>
-                                  <div className="space-y-3">
-                                    {(editingStep0?.productId === product.id ? step0EditData?.components : product.components)?.map((component: any, idx: number) => (
-                                      <div key={idx} className="bg-dashboard-view-background p-4 relative">
+                                  </div>
+                                  <div className="space-y-2">
+                                    {(editingStep0?.productId === product.id ? step0EditData?.components : product.components)?.map((component: any, idx: number) => {
+                                      const isExpanded = editingStep0?.productId === product.id || (expandedComponents.get(product.id)?.has(idx) ?? false);
+                                      
+                                      return (
+                                      <div key={idx} className="bg-white border border-gray-100 relative">
+                                        {/* Collapsible Header - always visible in view mode for THIS product */}
+                                        {editingStep0?.productId !== product.id && (
+                                          <button
+                                            onClick={() => toggleComponentExpansion(product.id, idx)}
+                                            className="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              {isExpanded ? (
+                                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                                              ) : (
+                                                <ChevronRight className="w-4 h-4 text-gray-400" />
+                                              )}
+                                              <span className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
+                                                {component.name || `Component ${idx + 1}`}
+                                              </span>
+                                              {/* Brief preview when collapsed */}
+                                              {!isExpanded && component.description && (
+                                                <span className="text-[10px] text-gray-400 truncate max-w-[200px]">
+                                                  - {component.description.slice(0, 50)}{component.description.length > 50 ? '...' : ''}
+                                                </span>
+                                              )}
+                                            </div>
+                                            {/* Completeness badge in header */}
+                                            {(() => {
+                                              const cc = product.step0Results?.component_completeness?.find(
+                                                (c: any) => c.component_name === component.name
+                                              );
+                                              if (!cc || cc.completeness_percentage === undefined) return null;
+                                              return (
+                                                <Badge className={`text-[10px] font-mono font-bold border-0 ${
+                                                  cc.completeness_percentage >= 70 ? 'bg-green-100 text-green-700' :
+                                                  cc.completeness_percentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                                  'bg-red-100 text-red-700'
+                                                }`}>
+                                                  {cc.completeness_percentage}%
+                                                </Badge>
+                                              );
+                                            })()}
+                                          </button>
+                                        )}
+                                        
+                                        {/* Edit mode - always show delete button */}
                                         {editingStep0?.productId === product.id && (
                                           <button
                                             onClick={() => handleRemoveStep0Section('component', idx)}
@@ -2076,6 +3806,10 @@ export default function Products() {
                                           </button>
                                         )}
                                         
+                                        {/* Expandable Content */}
+                                        {isExpanded && (
+                                          <div className={editingStep0?.productId === product.id ? 'p-4' : 'px-4 pb-4'}>
+                                        
                                         {editingStep0?.productId === product.id ? (
                                           <div className="space-y-3">
                                             <div>
@@ -2083,15 +3817,39 @@ export default function Products() {
                                                 <label className="text-xs font-semibold text-gray-600">Component Name</label>
                                                 {product.step0Results?.component_completeness?.find(
                                                   (cc: any) => cc.component_name === component.name
-                                                )?.completeness_percentage !== undefined && (
-                                                  <span className={`text-xs font-mono font-bold ${
-                                                    product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage >= 70 ? 'text-green-600' :
-                                                    product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage >= 40 ? 'text-yellow-600' :
-                                                    'text-red-600'
-                                                  }`}>
-                                                    {product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage}%
-                                                  </span>
-                                                )}
+                                                )?.completeness_percentage !== undefined && (() => {
+                                                  const cc = product.step0Results!.component_completeness!.find((c: any) => c.component_name === component.name)!;
+                                                  return (
+                                                    <div className="flex items-center gap-1">
+                                                      <Badge className={`text-xs font-mono font-bold border-0 ${
+                                                        cc.completeness_percentage >= 70 ? 'bg-green-100 text-green-700' :
+                                                        cc.completeness_percentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-red-100 text-red-700'
+                                                      }`}>
+                                                        {cc.completeness_percentage}%
+                                                      </Badge>
+                                                      {cc.completeness_percentage < 70 && cc.missing_details && (
+                                                        <button
+                                                          type="button"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            e.preventDefault();
+                                                            setComponentInfoModal({
+                                                              open: true,
+                                                              componentName: component.name,
+                                                              percentage: cc.completeness_percentage,
+                                                              missingDetails: cc.missing_details
+                                                            });
+                                                          }}
+                                                          className="text-gray-400 hover:text-gray-600"
+                                                          title="How to improve"
+                                                        >
+                                                          <Info className="w-3.5 h-3.5" />
+                                                        </button>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })()}
                                               </div>
                                               <input
                                                 type="text"
@@ -2238,15 +3996,37 @@ export default function Products() {
                                           </h6>
                                           {product.step0Results?.component_completeness?.find(
                                             (cc: any) => cc.component_name === component.name
-                                          )?.completeness_percentage !== undefined && (
-                                            <span className={`text-xs font-mono font-bold ${
-                                              product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage >= 70 ? 'text-green-600' :
-                                              product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage >= 40 ? 'text-yellow-600' :
-                                              'text-red-600'
-                                            }`}>
-                                              {product.step0Results.component_completeness.find((cc: any) => cc.component_name === component.name)!.completeness_percentage}%
-                                            </span>
-                                          )}
+                                          )?.completeness_percentage !== undefined && (() => {
+                                            const cc = product.step0Results!.component_completeness!.find((c: any) => c.component_name === component.name)!;
+                                            return (
+                                              <div className="flex items-center gap-1">
+                                                <Badge className={`text-xs font-mono font-bold border-0 ${
+                                                  cc.completeness_percentage >= 70 ? 'bg-green-100 text-green-700' :
+                                                  cc.completeness_percentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                                  'bg-red-100 text-red-700'
+                                                }`}>
+                                                  {cc.completeness_percentage}%
+                                                </Badge>
+                                                {cc.completeness_percentage < 70 && cc.missing_details && (
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setComponentInfoModal({
+                                                        open: true,
+                                                        componentName: component.name,
+                                                        percentage: cc.completeness_percentage,
+                                                        missingDetails: cc.missing_details
+                                                      });
+                                                    }}
+                                                    className="text-gray-400 hover:text-gray-600"
+                                                    title="How to improve"
+                                                  >
+                                                    <Info className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                         
                                         {/* Description */}
@@ -2259,25 +4039,32 @@ export default function Products() {
                                         )}
                                         
                                         {/* Materials */}
-                                        {component.materials && (
                                           <div className="mb-3">
                                             <div className="text-xs font-semibold text-gray-600 mb-1">Materials</div>
                                             <div className="flex flex-wrap gap-1.5">
-                                              {(Array.isArray(component.materials) ? component.materials : 
-                                                typeof component.materials === 'string' ? 
+                                            {(() => {
+                                              const mats = Array.isArray(component.materials) ? component.materials : 
+                                                typeof component.materials === 'string' && component.materials ? 
                                                 component.materials.split(',').map((m: string) => m.trim()).filter(Boolean) : 
-                                                []
-                                              ).map((material: string, matIdx: number) => (
+                                                [];
+                                              // Filter out "Not specified" placeholder
+                                              const validMats = mats.filter((m: string) => m && m.toLowerCase() !== 'not specified');
+                                              if (validMats.length === 0) {
+                                                return (
+                                                  <span className="text-xs text-gray-400 italic">No materials specified</span>
+                                                );
+                                              }
+                                              return validMats.map((material: string, matIdx: number) => (
                                                 <Badge 
                                                   key={matIdx} 
                                                   className="bg-gray-200 text-gray-800 hover:bg-gray-300 text-xs px-2 py-0.5"
                                                 >
                                                   {material}
                                                 </Badge>
-                                              ))}
+                                              ));
+                                            })()}
                                             </div>
                                           </div>
-                                        )}
                                         
                                         {/* Function */}
                                         {component.function && (
@@ -2364,29 +4151,18 @@ export default function Products() {
                                             )}
                                           </div>
                                         )}
-                                      </div>
-                                    ))}
-                                  </div>
                                 </div>
                               )}
-
-                              {/* Improvement Guidance */}
-                              {!editingStep0 && product.step0Results?.improvement_guidance && (
-                                <div className="relative">
-                                  <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-2">
-                                    How to Improve Comprehensiveness
-                                  </h5>
-                                  <div className="bg-blue-50 border border-blue-200 p-4">
-                                    <p className="text-xs text-gray-700 italic whitespace-pre-wrap">
-                                      {product.step0Results.improvement_guidance}
-                                    </p>
+                                      </div>
+                                    );
+                                    })}
                                   </div>
                                 </div>
                               )}
 
                               {/* Research Sources */}
                               {((editingStep0?.productId === product.id) || 
-                                (!editingStep0 && product.step0Payload?.research_sources && product.step0Payload.research_sources.length > 0)) && (
+                                (editingStep0?.productId !== product.id && product.step0Payload?.research_sources && product.step0Payload.research_sources.length > 0)) && (
                                 <div className="relative">
                                   <div className="flex items-center justify-between mb-2">
                                     <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
@@ -2513,7 +4289,7 @@ export default function Products() {
                               {/* Fallback: Show raw text if no components */}
                               {/* Always show full product decomposition if available */}
                               {((editingStep0?.productId === product.id) || 
-                                (!editingStep0 && product.step0Results?.product_decomposition)) && (
+                                (editingStep0?.productId !== product.id && product.step0Results?.product_decomposition)) && (
                                 <div className="relative">
                                   <div className="flex items-center justify-between mb-2">
                                     <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))]">
@@ -2553,7 +4329,13 @@ export default function Products() {
                           )}
 
                         {/* Expandable Step 2 Results */}
-                        {isStep2Expanded && product.step2Results && (
+                        {isStep2Expanded && loadingStepDetails.has(`${product.id}-step2`) && (
+                          <div className="ml-0 md:ml-6 mt-2 p-8 bg-white flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--dashboard-link-color))]" />
+                            <span className="ml-3 text-gray-500">Loading compliance elements...</span>
+                          </div>
+                        )}
+                        {isStep2Expanded && !loadingStepDetails.has(`${product.id}-step2`) && product.step2Results && (
                             <div className="ml-0 md:ml-6 mt-2 relative">
                               {/* Edit Icon - Top Right */}
                               <div className="absolute top-0 right-0">
@@ -2910,7 +4692,13 @@ export default function Products() {
                           )}
 
                         {/* Expandable Step 4 Results */}
-                        {isStep4Expanded && product.step4Results && (
+                        {isStep4Expanded && loadingStepDetails.has(`${product.id}-step4`) && (
+                          <div className="ml-0 md:ml-6 mt-2 p-8 bg-white flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--dashboard-link-color))]" />
+                            <span className="ml-3 text-gray-500">Loading compliance updates...</span>
+                          </div>
+                        )}
+                        {isStep4Expanded && !loadingStepDetails.has(`${product.id}-step4`) && product.step4Results && (
                             <div className="ml-0 md:ml-6 mt-2">
                               <div className="mb-3">
                                 <h5 className="text-xs font-bold text-[hsl(var(--dashboard-link-color))] mb-1">
@@ -3025,15 +4813,30 @@ export default function Products() {
                                                   const impact = update?.impact || '';
                                                   const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
+                                                  // Check if this update is new/changed
+                                                  const updateKey = getUpdateKey(update);
+                                                  const productNewIds = newUpdateIds.get(product.id);
+                                                  const isNewUpdate = productNewIds?.has(updateKey) || false;
+                                                  
                                                   return (
                                                     <TooltipProvider key={idx}>
                                                       <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                          <div className={`relative bg-white p-3 border-l-4 cursor-pointer transition-colors hover:bg-gray-50 ${
+                                                          <div className={`relative p-3 border-l-4 cursor-pointer transition-colors ${
+                                                            isNewUpdate ? 'bg-orange-50 hover:bg-orange-100' : 'bg-white hover:bg-gray-50'
+                                                          } ${
                                                             impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
                                                             impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
                                                             impact ? 'border-green-500' : 'border-blue-500'
                                                           }`}>
+                                                            {/* NEW badge for new/changed updates */}
+                                                            {isNewUpdate && (
+                                                              <div className="absolute top-2 left-2">
+                                                                <Badge className="bg-orange-500 text-white border-0 text-[8px] px-1 py-0 h-3.5">
+                                                                  NEW
+                                                                </Badge>
+                                                              </div>
+                                                            )}
                                                             {/* Link icon in top right corner - only show if URL exists */}
                                                             {sourceUrl && (
                                                               <div className="absolute top-2 right-2">
@@ -3050,8 +4853,8 @@ export default function Products() {
                                                               </div>
                                                             )}
                                                             
-                                                            <div className="flex items-start gap-3 pr-6">
-                                                              <Bell className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                            <div className={`flex items-start gap-3 pr-6 ${isNewUpdate ? 'mt-4' : ''}`}>
+                                                              <Bell className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isNewUpdate ? 'text-orange-500' : 'text-blue-500'}`} />
                                                               <div className="flex-1 min-w-0">
                                                                 <div className="mb-1.5">
                                                                   {updateDate && (() => {
@@ -3128,15 +4931,30 @@ export default function Products() {
                                                   const impact = update?.impact || '';
                                                   const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
+                                                  // Check if this update is new/changed
+                                                  const updateKey = getUpdateKey(update);
+                                                  const productNewIds = newUpdateIds.get(product.id);
+                                                  const isNewUpdate = productNewIds?.has(updateKey) || false;
+                                                  
                                                   return (
                                                     <TooltipProvider key={idx}>
                                                       <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                          <div className={`relative bg-white p-3 border-l-4 cursor-pointer transition-colors hover:bg-gray-50 ${
+                                                          <div className={`relative p-3 border-l-4 cursor-pointer transition-colors ${
+                                                            isNewUpdate ? 'bg-orange-50 hover:bg-orange-100' : 'bg-white hover:bg-gray-50'
+                                                          } ${
                                                             impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
                                                             impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
                                                             impact ? 'border-green-500' : 'border-blue-500'
                                                           }`}>
+                                                            {/* NEW badge for new/changed updates */}
+                                                            {isNewUpdate && (
+                                                              <div className="absolute top-2 left-2">
+                                                                <Badge className="bg-orange-500 text-white border-0 text-[8px] px-1 py-0 h-3.5">
+                                                                  NEW
+                                                                </Badge>
+                                                              </div>
+                                                            )}
                                                             {/* Link icon in top right corner - only show if URL exists */}
                                                             {sourceUrl && (
                                                               <div className="absolute top-2 right-2">
@@ -3153,8 +4971,8 @@ export default function Products() {
                                                               </div>
                                                             )}
                                                             
-                                                            <div className="flex items-start gap-3 pr-6">
-                                                              <Bell className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                            <div className={`flex items-start gap-3 pr-6 ${isNewUpdate ? 'mt-4' : ''}`}>
+                                                              <Bell className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isNewUpdate ? 'text-orange-500' : 'text-blue-500'}`} />
                                                               <div className="flex-1 min-w-0">
                                                                 <div className="mb-1.5">
                                                                   {updateDate && (() => {
@@ -3231,15 +5049,30 @@ export default function Products() {
                                                   const impact = update?.impact || '';
                                                   const sourceUrl = update?.source || update?.source_url || update?.url;
                                                   
+                                                  // Check if this update is new/changed
+                                                  const updateKey = getUpdateKey(update);
+                                                  const productNewIds = newUpdateIds.get(product.id);
+                                                  const isNewUpdate = productNewIds?.has(updateKey) || false;
+                                                  
                                                   return (
                                                     <TooltipProvider key={idx}>
                                                       <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                          <div className={`relative bg-white p-3 border-l-4 cursor-pointer transition-colors hover:bg-gray-50 ${
+                                                          <div className={`relative p-3 border-l-4 cursor-pointer transition-colors ${
+                                                            isNewUpdate ? 'bg-orange-50 hover:bg-orange-100' : 'bg-white hover:bg-gray-50'
+                                                          } ${
                                                             impact && impact.toUpperCase() === 'HIGH' ? 'border-red-500' :
                                                             impact && impact.toUpperCase() === 'MEDIUM' ? 'border-yellow-500' :
                                                             impact ? 'border-green-500' : 'border-blue-500'
                                                           }`}>
+                                                            {/* NEW badge for new/changed updates */}
+                                                            {isNewUpdate && (
+                                                              <div className="absolute top-2 left-2">
+                                                                <Badge className="bg-orange-500 text-white border-0 text-[8px] px-1 py-0 h-3.5">
+                                                                  NEW
+                                                                </Badge>
+                                                              </div>
+                                                            )}
                                                             {/* Link icon in top right corner - only show if URL exists */}
                                                             {sourceUrl && (
                                                               <div className="absolute top-2 right-2">
@@ -3256,8 +5089,8 @@ export default function Products() {
                                                               </div>
                                                             )}
                                                             
-                                                            <div className="flex items-start gap-3 pr-6">
-                                                              <Bell className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                            <div className={`flex items-start gap-3 pr-6 ${isNewUpdate ? 'mt-4' : ''}`}>
+                                                              <Bell className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isNewUpdate ? 'text-orange-500' : 'text-blue-500'}`} />
                                                               <div className="flex-1 min-w-0">
                                                                 <div className="mb-1.5">
                                                                   {updateDate && (() => {
@@ -3418,57 +5251,87 @@ export default function Products() {
 
                     {/* Action Buttons - Top Right Corner */}
                     <div className="flex gap-2 flex-shrink-0 items-start">
+                      {/* SIMPLE CONTINUE BUTTON - Shows if ANY step is not completed */}
                       {(() => {
-                        // Determine which step should be started next
-                        let nextStep: number | null = null;
+                        // Check if all steps are completed
+                        const allDone = 
+                          step0StatusLower === 'completed' && 
+                          step1StatusLower === 'completed' && 
+                          step2StatusLower === 'completed' && 
+                          step3StatusLower === 'completed' && 
+                          step4StatusLower === 'completed';
                         
-                        if (product.step0Status === 'pending' || !product.step0Status) {
+                        // Check if any step is running
+                        const anyRunning = 
+                          step0StatusLower === 'running' || 
+                          step1StatusLower === 'running' || 
+                          step2StatusLower === 'running' || 
+                          step3StatusLower === 'running' || 
+                          step4StatusLower === 'running';
+                        
+                        // Find which step to run next
+                        let nextStep = -1;
+                        let stepLabel = 'Continue';
+                        
+                        if (step0StatusLower !== 'completed') {
                           nextStep = 0;
-                        } else if (product.step0Status === 'completed' && (product.step1Status === 'pending' || !product.step1Status)) {
+                          stepLabel = 'Start Analysis';
+                        } else if (step1StatusLower !== 'completed') {
                           nextStep = 1;
-                        } else if (product.step1Status === 'completed' && (product.step2Status === 'pending' || !product.step2Status)) {
+                          stepLabel = 'Run Step 1';
+                        } else if (step2StatusLower !== 'completed') {
                           nextStep = 2;
-                        } else if (product.step2Status === 'completed' && (product.step3Status === 'pending' || !product.step3Status)) {
+                          stepLabel = 'Run Step 2';
+                        } else if (step3StatusLower !== 'completed') {
                           nextStep = 3;
-                        } else if (product.step3Status === 'completed' && (product.step4Status === 'pending' || !product.step4Status)) {
+                          stepLabel = 'Run Step 3';
+                        } else if (step4StatusLower !== 'completed') {
                           nextStep = 4;
+                          stepLabel = 'Run Step 4';
                         }
                         
-                        const isExecutingNext = (
-                          (nextStep === 0 && isExecutingStep0) ||
-                          (nextStep === 1 && isExecutingStep1) ||
-                          (nextStep === 2 && isExecutingStep2) ||
-                          (nextStep === 3 && isExecutingStep3) ||
-                          (nextStep === 4 && isExecutingStep4)
-                        );
+                        // If all done, show Re-run All
+                        if (allDone) {
+                          return (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRerunAll(product.id)}
+                              className="border-0 bg-green-50 text-green-600 hover:bg-green-100"
+                            >
+                              <RefreshCw className="w-4 h-4 mr-1" />
+                              Re-run All
+                            </Button>
+                          );
+                        }
                         
-                        return nextStep !== null ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
+                        // If something is running, show status
+                        if (anyRunning) {
+                          return (
+                            <Button size="sm" disabled className="bg-blue-100 text-blue-600 border-0">
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              Processing...
+                            </Button>
+                          );
+                        }
+                        
+                        // Otherwise show Continue button
+                        return (
+                          <Button
+                            size="sm"
+                            onClick={() => {
                               if (nextStep === 0) handleStartStep0(product.id);
                               else if (nextStep === 1) handleStartStep1(product.id);
                               else if (nextStep === 2) handleStartStep2(product.id);
                               else if (nextStep === 3) handleStartStep3(product.id);
                               else if (nextStep === 4) handleStartStep4(product.id);
-                          }}
-                          disabled={isExecutingNext}
-                          className="border-0 bg-blue-50 text-blue-600 hover:bg-blue-100"
-                        >
-                          {isExecutingNext ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                              Starting...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="w-4 h-4 mr-1" />
-                              Start Next
-                            </>
-                          )}
-                        </Button>
-                        ) : null;
+                            }}
+                            className="bg-green-600 hover:bg-green-700 text-white border-0"
+                          >
+                            <Play className="w-4 h-4 mr-1" />
+                            {stepLabel}
+                          </Button>
+                        );
                       })()}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -3481,6 +5344,14 @@ export default function Products() {
                       </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="border-0">
+                          <DropdownMenuItem 
+                            className="cursor-pointer"
+                            onClick={() => handleRerunAll(product.id)}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Re-run All Steps
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem className="cursor-pointer">
                             <Edit className="w-4 h-4 mr-2" />
                             Edit
@@ -3517,6 +5388,7 @@ export default function Products() {
             })}
           </div>
         )}
+        </div>
       </div>
 
       {/* Add Product Dialog */}
@@ -3575,6 +5447,47 @@ export default function Products() {
                 'Delete Product'
               )}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Component Info Modal - How to Improve Comprehensiveness */}
+      <AlertDialog open={componentInfoModal.open} onOpenChange={(open) => !open && setComponentInfoModal({ open: false, componentName: '', percentage: 0, missingDetails: '' })}>
+        <AlertDialogContent className="bg-white border-0 max-w-lg">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`p-3 border-0 ${
+                componentInfoModal.percentage >= 70 ? 'bg-green-50' :
+                componentInfoModal.percentage >= 40 ? 'bg-yellow-50' :
+                'bg-red-50'
+              }`}>
+                <Info className={`w-6 h-6 ${
+                  componentInfoModal.percentage >= 70 ? 'text-green-600' :
+                  componentInfoModal.percentage >= 40 ? 'text-yellow-600' :
+                  'text-red-600'
+                }`} />
+              </div>
+              <div>
+                <AlertDialogTitle className="text-left">How to Improve: {componentInfoModal.componentName}</AlertDialogTitle>
+                <Badge className={`mt-1 text-xs font-mono font-bold border-0 ${
+                  componentInfoModal.percentage >= 70 ? 'bg-green-100 text-green-700' :
+                  componentInfoModal.percentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {componentInfoModal.percentage}% Complete
+                </Badge>
+              </div>
+            </div>
+            <AlertDialogDescription className="text-left mt-4">
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                {componentInfoModal.missingDetails || 'No specific improvement suggestions available for this component.'}
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-0 bg-gray-100 text-gray-700 hover:bg-gray-200">
+              Close
+            </AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

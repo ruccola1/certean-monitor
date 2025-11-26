@@ -158,11 +158,11 @@ function formatHtmlContent({ type, title, message, productName, step, priority, 
   }
   if (step !== undefined) {
     const stepNames = {
-      0: 'Product Details',
-      1: 'Regulation Search',
-      2: 'Compliance Elements',
-      3: 'Gap Analysis',
-      4: 'Compliance Report'
+      0: 'Product Decomposition',
+      1: 'Compliance Assessment',
+      2: 'Identify Compliance Elements',
+      3: 'Generate Compliance Descriptions',
+      4: 'Track Compliance Updates'
     };
     const stepName = stepNames[step] || `Step ${step}`;
     contextInfo += `<div style='margin: 12px 0; padding: 12px; background-color: ${pageBackground};'><p style='margin: 0; color: ${primaryText}; font-size: 14px; font-family: "Geist Mono", monospace;'><strong style='font-weight: 700;'>Step:</strong> ${stepName}</p></div>`;
@@ -282,11 +282,11 @@ function formatTextContent({ type, title, message, productName, step, frontendUr
 
   if (step !== undefined) {
     const stepNames = {
-      0: 'Product Details',
-      1: 'Regulation Search',
-      2: 'Compliance Elements',
-      3: 'Gap Analysis',
-      4: 'Compliance Report'
+      0: 'Product Decomposition',
+      1: 'Compliance Assessment',
+      2: 'Identify Compliance Elements',
+      3: 'Generate Compliance Descriptions',
+      4: 'Track Compliance Updates'
     };
     const stepName = stepNames[step] || `Step ${step}`;
     lines.push(`Step: ${stepName}`);

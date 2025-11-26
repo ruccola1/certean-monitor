@@ -5,6 +5,7 @@ export interface Product {
   type: 'existing' | 'future' | 'imaginary';
   urls: string[];
   markets: string[];
+  target_audience?: ('consumer' | 'business')[];
   status: ProductStatus;
   step0Status: StepStatus;
   step1Status: StepStatus;

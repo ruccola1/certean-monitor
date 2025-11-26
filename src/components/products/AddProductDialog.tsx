@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { productService } from '@/services/productService';
-import { apiService } from '@/services/api';
+import { eventLogService } from '@/services/eventLogService';
 import { AlertCircle, X, Plus } from 'lucide-react';
 
 interface AddProductDialogProps {
@@ -33,6 +33,14 @@ interface AddProductDialogProps {
 
 export function AddProductDialog({ open, onOpenChange, onProductAdded, initialProduct }: AddProductDialogProps) {
   const { user } = useAuth0();
+  
+  // Helper to get user info for event logging
+  const getUserInfo = () => ({
+    user_id: (user as any)?.sub || 'unknown',
+    email: (user as any)?.email || 'unknown@example.com',
+    name: (user as any)?.name || (user as any)?.nickname || (user as any)?.email || 'Unknown User'
+  });
+  
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'existing' | 'new'>('existing');
@@ -42,6 +50,10 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Target audience state
+  const [targetConsumer, setTargetConsumer] = useState(true);
+  const [targetBusiness, setTargetBusiness] = useState(false);
   
   // Component definition state
   const [defineComponents, setDefineComponents] = useState(false);
@@ -85,6 +97,8 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       setType('existing');
       setUrls('');
       setMarkets('');
+      setTargetConsumer(true);
+      setTargetBusiness(false);
       setUploadedFiles([]);
       setUploadedImages([]);
       setDefineComponents(false);
@@ -122,15 +136,9 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
     setError(null);
 
     try {
-      // Use Certean AI API key for backend authentication
-      const apiKey = import.meta.env.VITE_CERTEAN_API_KEY;
-      if (apiKey) {
-        apiService.setToken(apiKey);
-        console.log('API key set for authentication');
-      } else {
-        console.warn('VITE_CERTEAN_API_KEY not found in environment variables');
-      }
-
+      // Don't overwrite the Auth0 token - it's already set by AuthCallback
+      // The API key is only used as fallback if Auth0 token is not available
+      
       // Concatenate name with description (matching certean-ai frontend)
       const fullDescription = `${name}: ${description}`;
 
@@ -138,6 +146,11 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
       const validComponents = defineComponents 
         ? components.filter(c => c.title.trim() && c.description.trim())
         : [];
+
+      // Build target audience array
+      const targetAudience: ('consumer' | 'business')[] = [];
+      if (targetConsumer) targetAudience.push('consumer');
+      if (targetBusiness) targetAudience.push('business');
 
       const productData = {
         products: [
@@ -147,6 +160,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
             type: (type === 'new' ? 'future' : type) as 'existing' | 'future' | 'imaginary', // Map 'new' to 'future' to match Product type
             urls: urls.split(',').map(url => url.trim()).filter(url => url),
             markets: markets.split(',').map(market => market.trim().toUpperCase()).filter(market => market),
+            target_audience: targetAudience,
             uploaded_files: uploadedFiles.map(f => f.name),
             uploaded_images: uploadedImages.map(f => f.name),
             predefined_components: validComponents.length > 0 ? validComponents : undefined,
@@ -166,24 +180,32 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
 
       // Step 0 is now auto-triggered by the backend upon creation
       
-      // Reset form
+      // Close dialog and notify parent IMMEDIATELY for instant feedback
+      // Do this BEFORE form reset to ensure dialog closes promptly
+      onOpenChange(false);
+      if (onProductAdded) {
+        onProductAdded();
+      }
+
+      // Log event in background (don't block UI)
+      const action = initialProduct ? 'product_duplicated' : 'product_added';
+      const productName = response.data?.[0]?.name || name;
+      const productId = response.data?.[0]?.id;
+      eventLogService.logEvent(action, productId, productName, {}, clientId, getUserInfo())
+        .catch(err => console.error('Event logging failed:', err));
+
+      // Reset form (for next time dialog opens)
       setName('');
       setDescription('');
       setType('existing');
       setUrls('');
       setMarkets('');
+      setTargetConsumer(true);
+      setTargetBusiness(false);
       setUploadedFiles([]);
       setUploadedImages([]);
       setDefineComponents(false);
       setComponents([{ title: '', description: '' }]);
-
-      // Close dialog immediately (instant feedback)
-      onOpenChange(false);
-      
-      // Notify parent component immediately to refresh list
-      if (onProductAdded) {
-        onProductAdded();
-      }
     } catch (err: any) {
       console.error('Error creating product:', err);
       
@@ -310,6 +332,35 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
                 />
                 <p className="text-xs text-gray-500">
                   Enter comma-separated market codes
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-[hsl(var(--dashboard-link-color))]">
+                  Target Audience *
+                </Label>
+                <div className="flex gap-4 pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={targetConsumer}
+                      onChange={(e) => setTargetConsumer(e.target.checked)}
+                      className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] border-gray-300"
+                    />
+                    <span className="text-sm text-[hsl(var(--dashboard-link-color))]">Consumer</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={targetBusiness}
+                      onChange={(e) => setTargetBusiness(e.target.checked)}
+                      className="w-4 h-4 text-[hsl(var(--dashboard-link-color))] border-gray-300"
+                    />
+                    <span className="text-sm text-[hsl(var(--dashboard-link-color))]">Business</span>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Select one or both target audiences
                 </p>
               </div>
 
@@ -473,7 +524,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded, initialPr
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !name || !description || !markets}
+              disabled={isSubmitting || !name || !description || !markets || (!targetConsumer && !targetBusiness)}
               className="bg-[hsl(var(--dashboard-link-color))] hover:bg-[hsl(var(--dashboard-link-color))]/80 text-white"
             >
               {isSubmitting ? 'Adding...' : initialProduct ? 'Create Product' : 'Add Product'}

@@ -1,5 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react';
-import { Bell, User, Settings, LogOut, CheckCircle, XCircle, Trash2, Menu } from 'lucide-react';
+import { Bell, User, Settings, LogOut, CheckCircle, XCircle, Trash2, Menu, RefreshCw } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { useNotificationContext } from '@/contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getClientId } from '@/utils/clientId';
+import { fetchClientInfo } from '@/services/clientService';
 
 interface TopbarProps {
   onMobileMenuToggle?: () => void;
@@ -26,15 +27,26 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAll } = useNotificationContext();
   const navigate = useNavigate();
   const [subscriptionTier, setSubscriptionTier] = useState<string>('');
+  const [clientName, setClientName] = useState<string>('Your Company');
 
-  // Use Auth0 user data if available, otherwise use demo data
-  const clientName = "Supercase"; // This would come from user metadata in production
   const userName = user?.name || "Nicolas Zander";
   const userEmail = user?.email || "nicolas@supercase.se";
   const userInitials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase()
     : "NZ";
   const userPicture = user?.picture;
+
+  // Fetch client name from database
+  useEffect(() => {
+    const loadClientInfo = async () => {
+      const clientInfo = await fetchClientInfo(user);
+      if (clientInfo && clientInfo.client_name) {
+        setClientName(clientInfo.client_name);
+      }
+    };
+
+    loadClientInfo();
+  }, [user]);
 
   // Fetch subscription tier
   useEffect(() => {
@@ -175,22 +187,42 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
                           <XCircle className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                             notification.read ? 'text-gray-400' : 'text-red-600'
                           }`} />
+                        ) : notification.type === 'update_change' ? (
+                          <RefreshCw className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+                            notification.read ? 'text-gray-400' : 'text-orange-500'
+                          }`} />
                         ) : (
                           <Bell className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
                             notification.read ? 'text-gray-400' : 'text-blue-600'
                           }`} />
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium ${
-                            notification.read ? 'text-gray-400 line-through' : 'text-[hsl(var(--dashboard-link-color))]'
-                          }`}>
-                            {notification.title}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className={`text-sm font-medium ${
+                              notification.read ? 'text-gray-400 line-through' : 'text-[hsl(var(--dashboard-link-color))]'
+                            }`}>
+                              {notification.title}
+                            </p>
+                            {notification.type === 'update_change' && !notification.read && (
+                              <Badge className="bg-orange-500 text-white border-0 text-[8px] px-1 py-0 h-4">
+                                CHANGES
+                              </Badge>
+                            )}
+                          </div>
                           <p className={`text-xs mt-1 ${
                             notification.read ? 'text-gray-400' : 'text-gray-600'
                           }`}>
                             {notification.message}
                           </p>
+                          {notification.metadata?.newUpdatesCount !== undefined && notification.metadata.newUpdatesCount > 0 && (
+                            <p className={`text-xs mt-0.5 ${
+                              notification.read ? 'text-gray-300' : 'text-orange-600'
+                            }`}>
+                              {notification.metadata.newUpdatesCount} new update{notification.metadata.newUpdatesCount > 1 ? 's' : ''}
+                              {notification.metadata.changedUpdatesCount && notification.metadata.changedUpdatesCount > 0 && 
+                                `, ${notification.metadata.changedUpdatesCount} changed`}
+                            </p>
+                          )}
                           <p className={`text-xs mt-1 ${
                             notification.read ? 'text-gray-300' : 'text-gray-400'
                           }`}>

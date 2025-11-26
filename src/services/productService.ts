@@ -4,15 +4,26 @@ import type { ApiResponse } from '@/types/api';
 
 export const productService = {
   // Create products in bulk
-  async createBulk(products: Partial<Product>[], clientId?: string): Promise<ApiResponse<Product[]>> {
-    const url = clientId ? `/api/products/bulk?client_id=${encodeURIComponent(clientId)}` : '/api/products/bulk';
+  async createBulk(products: Partial<Product>[], clientId?: string | null): Promise<ApiResponse<Product[]>> {
+    if (!clientId) {
+      return { success: false, error: 'No client assigned. Contact administrator to set up your workspace.' };
+    }
+    const url = `/api/products/bulk?client_id=${encodeURIComponent(clientId)}`;
     const { data } = await api.post(url, { products });
     return data;
   },
 
   // Get all products for current client
-  async getAll(clientId?: string): Promise<ApiResponse<Product[]>> {
-    const url = clientId ? `/api/products?client_id=${encodeURIComponent(clientId)}` : '/api/products';
+  async getAll(clientId?: string | null, minimal?: boolean): Promise<ApiResponse<Product[]>> {
+    // If no clientId, return empty array (new user without client assigned)
+    if (!clientId) {
+      return { success: true, data: [] };
+    }
+    
+    let url = `/api/products?client_id=${encodeURIComponent(clientId)}`;
+    if (minimal) {
+      url += '&minimal=true';
+    }
     const { data } = await api.get(url);
     return data;
   },
@@ -36,7 +47,7 @@ export const productService = {
   },
 
   // Execute Step 0 (Product Decomposition)
-  async executeStep0(productId: string, clientId?: string): Promise<ApiResponse<any>> {
+  async executeStep0(productId: string, clientId?: string | null): Promise<ApiResponse<any>> {
     const url = `/api/products/${productId}/execute-step0`;
     // Send client_id in request body (more reliable than query params for POST)
     const body = clientId ? { client_id: clientId } : {};
@@ -62,7 +73,7 @@ export const productService = {
   },
 
   // Execute Step 1 (Compliance Assessment)
-  async executeStep1(productId: string, clientId?: string): Promise<ApiResponse<any>> {
+  async executeStep1(productId: string, clientId?: string | null): Promise<ApiResponse<any>> {
     let url = `/api/products/${productId}/execute-step1`;
     if (clientId) {
       url = `${url}?client_id=${encodeURIComponent(clientId)}`;
@@ -83,7 +94,7 @@ export const productService = {
   },
 
   // Execute Step 2 (Identify Compliance Elements)
-  async executeStep2(productId: string, clientId?: string): Promise<ApiResponse<any>> {
+  async executeStep2(productId: string, clientId?: string | null): Promise<ApiResponse<any>> {
     let url = `/api/products/${productId}/execute-step2`;
     if (clientId) {
       url = `${url}?client_id=${encodeURIComponent(clientId)}`;
@@ -93,7 +104,7 @@ export const productService = {
   },
 
   // Execute Step 3 (Generate Compliance Descriptions)
-  async executeStep3(productId: string, clientId?: string): Promise<ApiResponse<any>> {
+  async executeStep3(productId: string, clientId?: string | null): Promise<ApiResponse<any>> {
     let url = `/api/products/${productId}/execute-step3`;
     if (clientId) {
       url = `${url}?client_id=${encodeURIComponent(clientId)}`;
@@ -103,7 +114,7 @@ export const productService = {
   },
 
   // Execute Step 4 (Track Compliance Updates)
-  async executeStep4(productId: string, clientId?: string): Promise<ApiResponse<any>> {
+  async executeStep4(productId: string, clientId?: string | null): Promise<ApiResponse<any>> {
     let url = `/api/products/${productId}/execute-step4`;
     if (clientId) {
       url = `${url}?client_id=${encodeURIComponent(clientId)}`;
@@ -161,7 +172,7 @@ export const productService = {
     productId: string,
     step0Payload: any,
     step0Results: any,
-    clientId?: string
+    clientId?: string | null
   ): Promise<ApiResponse<any>> {
     let url = `/api/products/${productId}/update-step0-payload`;
     if (clientId) {
@@ -179,7 +190,7 @@ export const productService = {
     productId: string,
     step2Payload: any,
     step2Results: any,
-    clientId?: string
+    clientId?: string | null
   ): Promise<ApiResponse<any>> {
     let url = `/api/products/${productId}/update-step2-payload`;
     if (clientId) {
@@ -195,11 +206,21 @@ export const productService = {
   // Search compliance elements from shared database
   async searchComplianceElements(
     query: string,
-    clientId?: string
+    clientId?: string | null
   ): Promise<ApiResponse<any>> {
     let url = `/api/compliance-areas/compliance-elements/search?query=${encodeURIComponent(query)}`;
     if (clientId) {
       url = `${url}&client_id=${encodeURIComponent(clientId)}`;
+    }
+    const { data } = await api.get(url);
+    return data;
+  },
+
+  // Get step details on-demand (lazy loading)
+  async getStepDetails(productId: string, stepNumber: number, clientId?: string | null): Promise<ApiResponse<any>> {
+    let url = `/api/products/${productId}/step/${stepNumber}`;
+    if (clientId) {
+      url += `?client_id=${encodeURIComponent(clientId)}`;
     }
     const { data } = await api.get(url);
     return data;

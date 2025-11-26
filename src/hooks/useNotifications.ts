@@ -3,7 +3,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 
 export interface Notification {
   id: string;
-  type: 'success' | 'error' | 'info';
+  type: 'success' | 'error' | 'info' | 'update_change';
   title: string;
   message: string;
   productId: string;
@@ -11,6 +11,11 @@ export interface Notification {
   step: number;
   timestamp: string;
   read: boolean;
+  metadata?: {
+    newUpdatesCount?: number;
+    changedUpdatesCount?: number;
+    isUpdateChange?: boolean;
+  };
 }
 
 const LOCAL_SERVER_URL = 'http://localhost:3001';
