@@ -441,8 +441,9 @@ export default function Dashboard() {
   // Full month name for reference line label
   const currentMonthFullLabel = useMemo(() => {
     const now = new Date();
-    const month = now.toLocaleString('default', { month: 'long' });
-    return `${month} ${now.getFullYear()}`;
+    const month = now.toLocaleString('en-US', { month: 'long' });
+    const capitalizedMonth = month.charAt(0).toUpperCase() + month.slice(1).toLowerCase();
+    return `${capitalizedMonth} ${now.getFullYear()}`;
   }, []);
 
   // Custom tooltip for the chart
