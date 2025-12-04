@@ -305,10 +305,19 @@ export default function Products() {
           }
         };
         
-        eventSource.onerror = () => {
-          console.log('%c⚠️ Log stream disconnected, reconnecting in 5s...', 'color: #f59e0b');
+        eventSource.onerror = (error) => {
+          // Silently handle disconnections - log streaming is optional
+          // The stream will auto-reconnect if needed
           eventSource?.close();
-          reconnectTimeout = setTimeout(connectToLogStream, 5000);
+
+          // Only reconnect if we haven't exceeded retry limit
+          if (!reconnectTimeout) {
+            console.log('%c⚠️ Log stream disconnected, will reconnect...', 'color: #f59e0b; font-size: 11px');
+            reconnectTimeout = setTimeout(() => {
+              reconnectTimeout = null;
+              connectToLogStream();
+            }, 5000);
+          }
         };
       } catch (error) {
         console.error('Failed to connect to log stream:', error);
