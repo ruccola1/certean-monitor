@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, XCircle, Eye, EyeOff, ExternalLink, MoreVertical, Edit, Copy, Share2, RefreshCw, Link2, Link2Off, Info, Upload, FileText, Link as LinkIcon, Camera, Mic, Image, File, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, Plus, Trash2, Play, AlertTriangle, FileCheck, XCircle, Eye, EyeOff, ExternalLink, MoreVertical, Edit, Copy, Share2, RefreshCw, Link2, Link2Off, Info, Upload, FileText, Link as LinkIcon, Camera, Mic, Image, File, ChevronDown, ChevronRight, Bell } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { ProductFilterbar } from '@/components/products/ProductFilterbar';
 import { productService } from '@/services/productService';
@@ -31,225 +31,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-interface Component {
-  id: string;
-  name: string;
-  description: string;
-  materials: string[];
-  function: string;
-}
-
-interface Step0Results {
-  product_decomposition?: string;
-  product_overview?: string;
-  research_sources?: number;
-  components_count?: number;
-  categories?: string[];
-  materials?: string[];
-  quality_score?: number;
-  quality_reasoning?: string;
-  is_sufficient?: boolean;
-  missing_info?: string[];
-  recommendations?: string[];
-  improvement_guidance?: string;
-  component_completeness?: Array<{
-    component_name: string;
-    completeness_percentage: number;
-    missing_details: string;
-  }>;
-  // Legacy
-  components?: Component[];
-  summary?: string;
-  processingTime?: string;
-  aiModel?: string;
-}
-
-interface Step0Payload {
-  product_decomposition?: string;
-  product_overview?: string;
-  product_name?: string;
-  product_type?: string;
-  target_markets?: string[];
-  research_sources?: Array<{ url: string; content?: string }>;
-  components?: Component[];
-  categories?: string[];
-  materials?: string[];
-  is_editable?: boolean;
-  edited?: boolean;
-}
-
-interface ComponentAssessment {
-  componentId: string;
-  componentName: string;
-  complianceRequirements: string[];
-  riskLevel: string;
-  testingRequired: string[];
-}
-
-interface Step1Results {
-  compliance_assessment: string;
-  word_count: number;
-  model_used: any;
-  ai_count: number;
-  target_markets: string[];
-  // Legacy structure (not used anymore)
-  assessments?: ComponentAssessment[];
-  summary?: string;
-  processingTime?: string;
-  aiModel?: string;
-}
-
-interface ComplianceElement {
-  id: string;
-  name: string;
-  type: string;
-  applicability: string;
-  markets: string[];
-  isMandatory: boolean;
-}
-
-interface Step2Results {
-  compliance_elements: Array<{
-    element_designation?: string;
-    designation?: string;
-    name?: string;
-    element_name?: string;
-    element_type?: string;
-    type?: string;
-    element_description_long?: string;
-    description?: string;
-    element_countries?: string[];
-    countries?: string[];
-    related_components?: string[];  // Component names this element applies to
-    [key: string]: any;
-  }>;
-  elements_count: number;
-  model_used: any;
-  ai_count: number;
-  target_markets: string[];
-  raw_response?: string;
-  component_element_map?: Record<string, string[]>;  // Component name → Element names
-  // Legacy
-  complianceElements?: ComplianceElement[];
-  totalElements?: number;
-  categorizedBy?: string;
-}
-
-interface Step3Results {
-  compliance_sources: Array<{
-    element_name?: string;
-    name?: string;
-    element_url?: string;
-    url?: string;
-    element_description?: string;
-    description?: string;
-    [key: string]: any;
-  }>;
-  sources_count: number;
-  model_used: any;
-  ai_count: number;
-  target_markets: string[];
-  raw_response?: string;
-}
-
-interface Step4Results {
-  compliance_updates: Array<{
-    regulation?: string;
-    title?: string;
-    update_date?: string;
-    type?: string;
-    description?: string;
-    impact?: string;
-    compliance_deadline?: string;
-    validity?: string;
-    [key: string]: any;
-  }>;
-  updates_count: number;
-  model_used: any;
-  ai_count: number;
-  target_markets?: string[];
-  raw_response?: string;
-}
-
-interface Step3Payload {
-  element_mappings: Array<{
-    step2_element_name: string;
-    step2_designation: string;
-    shared_db_id: string | null;
-    shared_db_name: string | null;
-    source_official: string | null;
-    found: boolean;
-  }>;
-}
-
-interface ProductDetails {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  manufactured_in?: string[];
-  markets: string[];
-  target_audience?: ('consumer' | 'business')[];
-  status: string;
-  step0Status: string;
-  step1Status: string;
-  step2Status: string;
-  step3Status: string;
-  step4Status: string;
-  createdAt: string;
-  step0Results?: Step0Results;
-  step0Payload?: Step0Payload;
-  step1Results?: Step1Results;
-  step2Results?: Step2Results;
-  step2Payload?: any;
-  step3Payload?: Step3Payload;
-  step3Results?: Step3Results;
-  step4Results?: Step4Results;
-  components?: Component[];
-  step0Progress?: {
-    current: string;
-    percentage: number;
-    steps: Array<{message: string; timestamp: string}>;
-  };
-  step1Progress?: {
-    current: string;
-    percentage: number;
-    steps: Array<{message: string; timestamp: string}>;
-  };
-  step2Progress?: {
-    current: string;
-    percentage: number;
-    steps: Array<{message: string; timestamp: string}>;
-  };
-  step3Progress?: {
-    current: string;
-    percentage: number;
-    steps: Array<{message: string; timestamp: string}>;
-  };
-  step4Progress?: {
-    current: string;
-    percentage: number;
-    steps: Array<{message: string; timestamp: string}>;
-  };
-}
-
-interface ComplianceArea {
-  id: string;
-  name: string;
-  description: string;
-  isDefault?: boolean;
-}
+import type {
+  ProductDetails,
+  ComplianceArea,
+  Step4Results,
+} from '@/types/products';
+import {
+  getUpdateKey,
+  compareStep4Results,
+  getUserInfo,
+  getLevelColor,
+} from '@/utils/products';
 
 export default function Products() {
   const { user } = useAuth0();
-  
-  // Helper to get user info for event logging
-  const getUserInfo = () => ({
-    user_id: (user as any)?.sub || 'unknown',
-    email: (user as any)?.email || 'unknown@example.com',
-    name: (user as any)?.name || (user as any)?.nickname || (user as any)?.email || 'Unknown User'
-  });
 
   // Connect to backend log stream for real-time logs
   useEffect(() => {
@@ -280,15 +75,7 @@ export default function Products() {
             }
             
             // Format and display the log
-            const levelColors: Record<string, string> = {
-              'DEBUG': '#9ca3af',
-              'INFO': '#3b82f6',
-              'WARNING': '#f59e0b',
-              'ERROR': '#ef4444',
-              'CRITICAL': '#dc2626'
-            };
-            
-            const color = levelColors[log.level] || '#6b7280';
+            const color = getLevelColor(log.level);
             const time = log.timestamp?.split('T')[1]?.split('.')[0] || '';
             const prefix = `[${time}] [${log.level}]`;
             
@@ -786,70 +573,6 @@ export default function Products() {
     };
   }, [user?.sub]); // Re-run when user loads
 
-  // Helper function to generate a unique key for an update (for comparison)
-  const getUpdateKey = (update: any): string => {
-    const regulation = update?.regulation || update?.name || '';
-    const title = update?.title || '';
-    const date = update?.update_date || update?.date || '';
-    const description = update?.description || '';
-    return `${regulation}|${title}|${date}|${description.slice(0, 100)}`;
-  };
-
-  // Helper function to compare step4 results and find new/changed updates
-  const compareStep4Results = (
-    oldResults: Step4Results | undefined,
-    newResults: Step4Results | undefined
-  ): { newUpdates: number; changedUpdates: number; newUpdateKeys: Set<string> } => {
-    if (!newResults?.compliance_updates) {
-      return { newUpdates: 0, changedUpdates: 0, newUpdateKeys: new Set() };
-    }
-
-    const newUpdates: string[] = [];
-    const changedUpdates: string[] = [];
-    const newUpdateKeys = new Set<string>();
-
-    // If no previous results, this is the first run - don't count as new
-    if (!oldResults?.compliance_updates || oldResults.compliance_updates.length === 0) {
-      return { newUpdates: 0, changedUpdates: 0, newUpdateKeys: new Set() };
-    }
-
-    // Build a map of old update keys to their full content
-    const oldUpdateMap = new Map<string, any>();
-    oldResults.compliance_updates.forEach((update: any) => {
-      const key = getUpdateKey(update);
-      oldUpdateMap.set(key, update);
-    });
-
-    // Compare new updates against old ones
-    newResults.compliance_updates.forEach((newUpdate: any) => {
-      const key = getUpdateKey(newUpdate);
-      
-      if (!oldUpdateMap.has(key)) {
-        // This is a completely new update
-        newUpdates.push(key);
-        newUpdateKeys.add(key);
-      } else {
-        // Check if content changed significantly
-        const oldUpdate = oldUpdateMap.get(key);
-        const newDesc = newUpdate?.description || '';
-        const oldDesc = oldUpdate?.description || '';
-        const newImpact = newUpdate?.impact || '';
-        const oldImpact = oldUpdate?.impact || '';
-        
-        if (newDesc !== oldDesc || newImpact !== oldImpact) {
-          changedUpdates.push(key);
-          newUpdateKeys.add(key);
-        }
-      }
-    });
-
-    return { 
-      newUpdates: newUpdates.length, 
-      changedUpdates: changedUpdates.length,
-      newUpdateKeys 
-    };
-  };
-
   // Detect status changes and send notifications
   useEffect(() => {
     products.forEach(product => {
@@ -1114,7 +837,7 @@ export default function Products() {
       // Log event
       const clientId = getClientId(user);
       const product = products.find(p => p.id === productId);
-      await eventLogService.logEvent('categories_configured', productId, product?.name, { action: 'removed', category }, clientId, getUserInfo());
+      await eventLogService.logEvent('categories_configured', productId, product?.name, { action: 'removed', category }, clientId, getUserInfo(user));
       
       fetchProducts(true); // Skip debounce for user actions
     } catch (error) {
@@ -1348,7 +1071,7 @@ export default function Products() {
       await productService.updateStep0Payload(productId, step0Payload, step0Results, clientId);
       
       // Log event
-      await eventLogService.logEvent('step_edited', productId, product.name, { step: 0 }, clientId, getUserInfo());
+      await eventLogService.logEvent('step_edited', productId, product.name, { step: 0 }, clientId, getUserInfo(user));
       
       // IMMEDIATELY update local state with edited values so UI reflects changes
       setProducts(prev => prev.map(p => {
@@ -1901,7 +1624,7 @@ export default function Products() {
           
           // Log event
           const product = products.find(p => p.id === productId);
-          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 0 }, clientId, getUserInfo());
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 0 }, clientId, getUserInfo(user));
           
           fetchProducts(true); // Skip debounce after step execution
         })
@@ -1982,7 +1705,7 @@ export default function Products() {
           
           // Log event
           const product = products.find(p => p.id === productId);
-          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 1 }, clientId, getUserInfo());
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 1 }, clientId, getUserInfo(user));
           
           fetchProducts(true); // Skip debounce after step execution
         })
@@ -2061,7 +1784,7 @@ export default function Products() {
           
           // Log event
           const product = products.find(p => p.id === productId);
-          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 2 }, clientId, getUserInfo());
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 2 }, clientId, getUserInfo(user));
           
           fetchProducts(true); // Skip debounce after step execution
         })
@@ -2140,7 +1863,7 @@ export default function Products() {
           
           // Log event
           const product = products.find(p => p.id === productId);
-          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 3 }, clientId, getUserInfo());
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 3 }, clientId, getUserInfo(user));
           
           fetchProducts(true); // Skip debounce after step execution
         })
@@ -2219,7 +1942,7 @@ export default function Products() {
           
           // Log event
           const product = products.find(p => p.id === productId);
-          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 4 }, clientId, getUserInfo());
+          await eventLogService.logEvent('step_executed', productId, product?.name, { step: 4 }, clientId, getUserInfo(user));
           
           fetchProducts(true); // Skip debounce after step execution
         })
@@ -2274,7 +1997,7 @@ export default function Products() {
       
       // Log event
       const clientId = getClientId(user);
-      await eventLogService.logEvent('step_rerun', productId, product?.name, { step: 'all' }, clientId, getUserInfo());
+      await eventLogService.logEvent('step_rerun', productId, product?.name, { step: 'all' }, clientId, getUserInfo(user));
 
       // Run steps sequentially: 0 -> 1 -> 2 -> 3 -> 4
       await handleStartStep0(productId);
@@ -2416,7 +2139,7 @@ export default function Products() {
       // Log event
       const clientId = getClientId(user);
       console.log('🔍 Logging event - product_deleted:', { productIdToDelete, productNameToDelete, clientId });
-          await eventLogService.logEvent('product_deleted', productIdToDelete, productNameToDelete, {}, clientId, getUserInfo());
+          await eventLogService.logEvent('product_deleted', productIdToDelete, productNameToDelete, {}, clientId, getUserInfo(user));
         })
         .catch((error) => {
       console.error('Failed to delete product:', error);
