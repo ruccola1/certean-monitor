@@ -20,12 +20,7 @@ export interface Notification {
 
 const EMAIL_API_URL = import.meta.env.VITE_EMAIL_API_URL;
 
-// Warn if email API URL is not configured
-if (!EMAIL_API_URL) {
-  console.warn('⚠️ VITE_EMAIL_API_URL not configured - email notifications will not work');
-} else if (EMAIL_API_URL.includes('localhost') && window.location.hostname !== 'localhost') {
-  console.error('❌ Production site is configured to use localhost email API - emails will fail');
-}
+// Email notifications are optional - silently skip if not configured
 
 export function useNotifications() {
   const { user } = useAuth0();
@@ -82,17 +77,14 @@ export function useNotifications() {
           .then(result => {
             if (result.success) {
               console.log('✅ Email notification sent successfully');
-            } else {
-              console.warn('⚠️ Email notification failed:', result.error);
             }
+            // Silently skip email failures - in-app notifications still work
           })
-          .catch(error => {
-            // Log but don't block - notifications still work locally
-            console.warn('⚠️ Email server not available:', error.message);
+          .catch(() => {
+            // Silently skip - email notifications are optional, in-app notifications still work
           });
       } catch (error) {
-        // Silently fail - UI notifications still work
-        console.warn('⚠️ Failed to send email notification:', error);
+        // Silently skip - email notifications are optional, in-app notifications still work
       }
     }
   };
