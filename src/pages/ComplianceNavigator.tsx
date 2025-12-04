@@ -495,10 +495,10 @@ export default function ComplianceNavigator() {
               const hasUpdates = month.updates.length > 0;
               
               return (
-                <div 
+                <div
                   key={month.key}
                   data-month={month.key}
-                  className="flex flex-col items-start relative px-2 h-full"
+                  className="flex flex-col items-start relative px-2 h-full overflow-hidden"
                   style={{ width: '350px', minWidth: '350px', maxWidth: '350px', flexShrink: 0 }}
                 >
                   {/* Month header */}
@@ -561,7 +561,7 @@ export default function ComplianceNavigator() {
                               <div
                                 data-entry-id={updateId}
                                 className={cn(
-                                  "w-full p-2 border-l-3 cursor-pointer transition-all duration-150",
+                                  "w-full p-2 border-l-3 cursor-pointer transition-all duration-150 overflow-hidden break-words",
                                   getImpactColor(impact),
                                   isHighlighted
                                     ? "bg-[hsl(var(--dashboard-link-color))] text-white"
@@ -569,7 +569,7 @@ export default function ComplianceNavigator() {
                                       ? "bg-blue-100"
                                       : shouldDim
                                         ? "opacity-30 bg-white"
-                                        : isPast 
+                                        : isPast
                                           ? "bg-gray-50"
                                           : "bg-white hover:bg-gray-50"
                                 )}
@@ -580,24 +580,24 @@ export default function ComplianceNavigator() {
                               >
                                 {/* Date */}
                                 <div className={cn(
-                                  "text-[9px] font-mono mb-1",
+                                  "text-[9px] font-mono mb-1 break-words",
                                   isHighlighted ? "text-white/80" : "text-gray-500"
                                 )}>
                                   {dateStr ? new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'No date'}
                                   <span className="ml-1 text-[8px]">({getDaysText(dateStr)})</span>
                                 </div>
-                                
+
                                 {/* Title */}
                                 <p className={cn(
-                                  "text-[11px] font-semibold leading-tight line-clamp-2 mb-1",
+                                  "text-[11px] font-semibold leading-tight line-clamp-2 mb-1 break-words",
                                   isHighlighted ? "text-white" : isPast ? "text-gray-600" : "text-[hsl(var(--dashboard-link-color))]"
                                 )}>
                                   {title || description.slice(0, 50) + '...'}
                                 </p>
-                                
+
                                 {/* Element name */}
                                 <p className={cn(
-                                  "text-[9px] line-clamp-1 mb-1",
+                                  "text-[9px] line-clamp-1 mb-1 break-words",
                                   isHighlighted ? "text-white/70" : "text-gray-400"
                                 )}>
                                   {elementName}
