@@ -72,9 +72,14 @@ export default function ComplianceNavigator() {
 
     setLoading(true);
     try {
-      // Fetch products for name mapping
-      console.log('ComplianceNavigator: Fetching products...');
-      const productsResponse = await apiService.get(`/api/products?client_id=${clientId}`);
+      // Fetch products and compliance updates in parallel for faster loading
+      console.log('ComplianceNavigator: Fetching data in parallel...');
+      const [productsResponse, updatesResponse] = await Promise.all([
+        apiService.get(`/api/products?client_id=${clientId}`),
+        apiService.get(`/api/products/${clientId}/compliance-updates`)
+      ]);
+      
+      // Process products for name mapping
       console.log('ComplianceNavigator: Products response:', productsResponse.data);
       const products = productsResponse.data?.products || [];
       const pMap = new Map<string, string>();
@@ -83,15 +88,10 @@ export default function ComplianceNavigator() {
       });
       setProductsMap(pMap);
 
-      // Fetch compliance updates - use the correct endpoint from products routes
-      console.log('ComplianceNavigator: Fetching compliance updates...');
-      const updatesResponse = await apiService.get(`/api/products/${clientId}/compliance-updates`);
+      // Process compliance updates
       console.log('ComplianceNavigator: Updates response:', updatesResponse.data);
       const updates: ComplianceUpdate[] = updatesResponse.data?.updates || [];
       console.log('ComplianceNavigator: Parsed updates count:', updates.length);
-      if (updates.length > 0) {
-        console.log('ComplianceNavigator: First update sample:', updates[0]);
-      }
       setComplianceUpdates(updates);
     } catch (error) {
       console.error('ComplianceNavigator: Error fetching data:', error);
@@ -193,7 +193,7 @@ export default function ComplianceNavigator() {
   useEffect(() => {
     if (!loading && scrollContainerRef.current && currentMonthIndex >= 0 && !hasUserScrolled) {
       const containerWidth = scrollContainerRef.current.offsetWidth;
-      const monthWidth = 200; // Width of each month column
+      const monthWidth = 350; // Width of each month column
       const scrollPosition = currentMonthIndex * monthWidth - (containerWidth / 2) + (monthWidth / 2);
       scrollContainerRef.current.scrollLeft = Math.max(0, scrollPosition);
     }
@@ -498,7 +498,8 @@ export default function ComplianceNavigator() {
                 <div 
                   key={month.key}
                   data-month={month.key}
-                  className="flex flex-col items-start min-w-[180px] relative px-2 h-full flex-shrink-0"
+                  className="flex flex-col items-start relative px-2 h-full"
+                  style={{ width: '350px', minWidth: '350px', maxWidth: '350px', flexShrink: 0 }}
                 >
                   {/* Month header */}
                   <div className={cn(
