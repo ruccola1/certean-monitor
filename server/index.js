@@ -15,7 +15,11 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:4173'], // Vite dev + preview
+  origin: [
+    'http://localhost:5173',      // Vite dev server
+    'http://localhost:4173',      // Vite preview server
+    'https://monitor.certean.com' // Production frontend
+  ],
   credentials: true
 }));
 app.use(express.json());
@@ -37,6 +41,6 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Certean Monitor server running on port ${PORT}`);
   console.log(`📧 Email service: ${process.env.RESEND_API_KEY ? '✅ Enabled (Resend)' : '⚠️  Disabled (no API key)'}`);
-  console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
+  console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'https://monitor.certean.com'}`);
 });
 

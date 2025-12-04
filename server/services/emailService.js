@@ -16,7 +16,7 @@ export async function sendNotificationEmail({
 }) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'notifications@certean.com';
-  const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const FRONTEND_URL = process.env.FRONTEND_URL || 'https://monitor.certean.com';
 
   // Check if Resend is configured
   if (!RESEND_API_KEY) {

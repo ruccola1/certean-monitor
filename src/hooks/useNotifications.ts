@@ -18,7 +18,14 @@ export interface Notification {
   };
 }
 
-const LOCAL_SERVER_URL = 'http://localhost:3001';
+const EMAIL_API_URL = import.meta.env.VITE_EMAIL_API_URL;
+
+// Warn if email API URL is not configured
+if (!EMAIL_API_URL) {
+  console.warn('⚠️ VITE_EMAIL_API_URL not configured - email notifications will not work');
+} else if (EMAIL_API_URL.includes('localhost') && window.location.hostname !== 'localhost') {
+  console.error('❌ Production site is configured to use localhost email API - emails will fail');
+}
 
 export function useNotifications() {
   const { user } = useAuth0();
@@ -52,11 +59,11 @@ export function useNotifications() {
     
     setNotifications(prev => [newNotification, ...prev].slice(0, 50)); // Keep only last 50
     
-    // 2. Send email via local server (background, don't block UI)
-    if (user?.email) {
+    // 2. Send email via email server (background, don't block UI)
+    if (user?.email && EMAIL_API_URL) {
       try {
-        // Call local email server
-        fetch(`${LOCAL_SERVER_URL}/api/email/notification`, {
+        // Call email notification API
+        fetch(`${EMAIL_API_URL}/api/email/notification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

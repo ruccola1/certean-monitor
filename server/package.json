@@ -1,0 +1,18 @@
+{
+  "name": "certean-monitor-server",
+  "version": "1.0.0",
+  "description": "Email notification server for Certean Monitor",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
