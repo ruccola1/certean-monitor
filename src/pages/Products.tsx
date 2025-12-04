@@ -4807,35 +4807,34 @@ export default function Products() {
                                   }
 
                                   // Categorize elements by type
-                                  const legislation: { name: string; updates: any[] }[] = [];
-                                  const standards: { name: string; updates: any[] }[] = [];
-                                  const markings: { name: string; updates: any[] }[] = [];
+                                  const legislation: { name: string; updates: any[]; type: string }[] = [];
+                                  const standards: { name: string; updates: any[]; type: string }[] = [];
+                                  const markings: { name: string; updates: any[]; type: string }[] = [];
 
                                   Object.entries(updatesByElement).forEach(([elementName, updates]) => {
                                     const type = elementTypes[elementName] || '';
-                                    const item = { name: elementName, updates };
-                                    
+
                                     if (type.includes('legislation') || type.includes('regulation') || type.includes('directive')) {
-                                      legislation.push(item);
+                                      legislation.push({ name: elementName, updates, type: 'legislation' });
                                     } else if (type.includes('standard')) {
-                                      standards.push(item);
+                                      standards.push({ name: elementName, updates, type: 'standard' });
                                     } else if (type.includes('marking')) {
-                                      markings.push(item);
+                                      markings.push({ name: elementName, updates, type: 'marking' });
                                     } else {
                                       // Default: try to guess from name
-                                      if (elementName.toLowerCase().includes('regulation') || 
-                                          elementName.toLowerCase().includes('directive') || 
+                                      if (elementName.toLowerCase().includes('regulation') ||
+                                          elementName.toLowerCase().includes('directive') ||
                                           elementName.toLowerCase().includes('law')) {
-                                        legislation.push(item);
-                                      } else if (elementName.toLowerCase().includes('standard') || 
-                                                 elementName.toLowerCase().includes('iso') || 
+                                        legislation.push({ name: elementName, updates, type: 'legislation' });
+                                      } else if (elementName.toLowerCase().includes('standard') ||
+                                                 elementName.toLowerCase().includes('iso') ||
                                                  elementName.toLowerCase().includes('en ')) {
-                                        standards.push(item);
-                                      } else if (elementName.toLowerCase().includes('marking') || 
+                                        standards.push({ name: elementName, updates, type: 'standard' });
+                                      } else if (elementName.toLowerCase().includes('marking') ||
                                                  elementName.toLowerCase().includes('label')) {
-                                        markings.push(item);
+                                        markings.push({ name: elementName, updates, type: 'marking' });
                                       } else {
-                                        legislation.push(item); // Default to legislation
+                                        legislation.push({ name: elementName, updates, type: 'legislation' }); // Default to legislation
                                       }
                                     }
                                   });
@@ -4870,12 +4869,12 @@ export default function Products() {
                                               {elementName}
                                         </h6>
                                             <Badge className={`text-[9px] border-0 px-1.5 py-0 ${
-                                              elementType.includes('legislation') || elementType.includes('regulation') ? 'bg-blue-50 text-blue-700' :
-                                              elementType.includes('standard') ? 'bg-purple-50 text-purple-700' :
+                                              elementType === 'legislation' ? 'bg-blue-50 text-blue-700' :
+                                              elementType === 'standard' ? 'bg-purple-50 text-purple-700' :
                                               'bg-cyan-50 text-cyan-700'
                                             }`}>
-                                              {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
-                                               elementType.includes('standard') ? 'Standard' : 'Marking'}
+                                              {elementType === 'legislation' ? 'Legislation' :
+                                               elementType === 'standard' ? 'Standard' : 'Marking'}
                                             </Badge>
                                         </div>
                                           <span className="text-[10px] text-gray-400">{sortedUpdates.length} update{sortedUpdates.length !== 1 ? 's' : ''}</span>
@@ -4983,12 +4982,12 @@ export default function Products() {
                                                       
                                                       {/* Type badge on card */}
                                                       <Badge className={`text-[8px] border-0 px-1 py-0 mt-1.5 ${
-                                                        elementType.includes('legislation') || elementType.includes('regulation') ? 'bg-blue-100 text-blue-700' :
-                                                        elementType.includes('standard') ? 'bg-purple-100 text-purple-700' :
+                                                        elementType === 'legislation' ? 'bg-blue-100 text-blue-700' :
+                                                        elementType === 'standard' ? 'bg-purple-100 text-purple-700' :
                                                         'bg-cyan-100 text-cyan-700'
                                                       }`}>
-                                                        {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
-                                                         elementType.includes('standard') ? 'Standard' : 'Marking'}
+                                                        {elementType === 'legislation' ? 'Legislation' :
+                                                         elementType === 'standard' ? 'Standard' : 'Marking'}
                                                                 </Badge>
                                                       
                                                       {/* Link if available */}
@@ -5011,12 +5010,12 @@ export default function Products() {
                                                     {description && <p className="text-xs text-gray-600 mb-2">{description.substring(0, 200)}...</p>}
                                                     <div className="flex flex-wrap gap-1.5 mt-2">
                                                       <Badge className={`text-[9px] border-0 px-1.5 py-0.5 ${
-                                                        elementType.includes('legislation') || elementType.includes('regulation') ? 'bg-blue-100 text-blue-700' :
-                                                        elementType.includes('standard') ? 'bg-purple-100 text-purple-700' :
+                                                        elementType === 'legislation' ? 'bg-blue-100 text-blue-700' :
+                                                        elementType === 'standard' ? 'bg-purple-100 text-purple-700' :
                                                         'bg-cyan-100 text-cyan-700'
                                                       }`}>
-                                                        {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
-                                                         elementType.includes('standard') ? 'Standard' : 'Marking'}
+                                                        {elementType === 'legislation' ? 'Legislation' :
+                                                         elementType === 'standard' ? 'Standard' : 'Marking'}
                                                       </Badge>
                                                         {impact && (
                                                         <Badge className={`text-[9px] border-0 px-1.5 py-0.5 ${
@@ -5067,8 +5066,7 @@ export default function Products() {
                                         </span>
                                           </div>
                                       {allElementsWithUpdates.map((element) => {
-                                        const type = elementTypes[element.name] || '';
-                                        return renderElementTimeline(element.name, element.updates, type);
+                                        return renderElementTimeline(element.name, element.updates, element.type);
                                       })}
                                           </div>
                                   );
