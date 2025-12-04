@@ -305,7 +305,7 @@ export default function Products() {
           }
         };
         
-        eventSource.onerror = (error) => {
+        eventSource.onerror = () => {
           // Silently handle disconnections - log streaming is optional
           // The stream will auto-reconnect if needed
           eventSource?.close();
