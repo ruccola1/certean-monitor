@@ -23,6 +23,8 @@ interface ComplianceUpdate {
   date?: string;
   element_name?: string;
   name?: string;
+  element_designation?: string;
+  designation?: string;
   element_type?: string;
   type?: string;
   impact?: string;
@@ -548,6 +550,7 @@ export default function ComplianceNavigator() {
                       const sourceUrl = update.source || update.source_url || update.url;
                       const productName = update.product_name || (update.product_id ? productsMap.get(update.product_id) : '');
                       const elementName = getElementName(update);
+                      const elementDesignation = update.element_designation || update.designation || '';
                       
                       const isHighlighted = highlightedEntryId === updateId;
                       const shouldHighlight = shouldHighlightEntry(update);
@@ -595,12 +598,12 @@ export default function ComplianceNavigator() {
                                   {title || description.slice(0, 50) + '...'}
                                 </p>
 
-                                {/* Element name */}
+                                {/* Element name with designation */}
                                 <p className={cn(
                                   "text-[9px] line-clamp-1 mb-1 break-words",
                                   isHighlighted ? "text-white/70" : "text-gray-400"
                                 )}>
-                                  {elementName}
+                                  {elementDesignation ? `${elementName} (${elementDesignation})` : elementName}
                                 </p>
                                 
                                 {/* Type badge */}
@@ -609,9 +612,9 @@ export default function ComplianceNavigator() {
                                     "text-[8px] border-0 px-1 py-0",
                                     isHighlighted ? "bg-white/20 text-white" : getTypeBadgeColor(elementType)
                                   )}>
-                                    {elementType.includes('legislation') || elementType.includes('regulation') ? 'Legislation' :
-                                     elementType.includes('standard') ? 'Standard' : 
-                                     elementType.includes('marking') ? 'Marking' : elementType}
+                                    {elementType.toLowerCase().includes('legislation') || elementType.toLowerCase().includes('regulation') ? 'Legislation' :
+                                     elementType.toLowerCase().includes('standard') ? 'Standard' :
+                                     elementType.toLowerCase().includes('marking') ? 'Marking' : elementType}
                                   </Badge>
                                 )}
                                 
@@ -635,7 +638,7 @@ export default function ComplianceNavigator() {
                             </TooltipTrigger>
                             <TooltipContent side="right" className="max-w-xs bg-white border border-gray-200 p-3 shadow-lg">
                               <p className="text-sm font-bold text-[hsl(var(--dashboard-link-color))] mb-1">{title}</p>
-                              <p className="text-xs text-gray-500 mb-2">{elementName}</p>
+                              <p className="text-xs text-gray-500 mb-2">{elementDesignation ? `${elementName} (${elementDesignation})` : elementName}</p>
                               {description && <p className="text-xs text-gray-600 mb-2">{description.substring(0, 200)}...</p>}
                               <div className="flex flex-wrap gap-1.5">
                                 {elementType && (
