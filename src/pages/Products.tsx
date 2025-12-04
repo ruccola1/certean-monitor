@@ -5176,7 +5176,9 @@ export default function Products() {
                                                   const description = update?.description || update?.update || '';
                                                   const impact = update?.impact || '';
                                                   const sourceUrl = update?.source || update?.source_url || update?.url;
-                                                  
+                                                  const status = update?.status || '';
+                                                  const isMandatory = update?.is_mandatory;
+
                                                   // Check if this update is new/changed
                                                   const updateKey = getUpdateKey(update);
                                                   const productNewIds = newUpdateIds.get(product.id);
@@ -5302,6 +5304,18 @@ export default function Products() {
                                                           {impact.toUpperCase()} Impact
                                                         </Badge>
                                                       )}
+                                                      {status && (
+                                                        <Badge className="text-[9px] border-0 px-1.5 py-0.5 bg-gray-100 text-gray-700">
+                                                          {status}
+                                                        </Badge>
+                                                      )}
+                                                      {isMandatory !== undefined && (
+                                                        <Badge className={`text-[9px] border-0 px-1.5 py-0.5 ${
+                                                          isMandatory ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                                                        }`}>
+                                                          {isMandatory ? 'Mandatory' : 'Optional'}
+                                                        </Badge>
+                                                      )}
                                                     </div>
                                                   </TooltipContent>
                                                       </Tooltip>
@@ -5337,10 +5351,14 @@ export default function Products() {
                                   );
                                 })()
                               ) : (
-                                <div className="bg-dashboard-view-background p-4 max-h-96 overflow-y-auto">
-                                  <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans">
-                                    {product.step4Results.raw_response || JSON.stringify(product.step4Results, null, 2) || 'No data available'}
-                                  </pre>
+                                <div className="bg-dashboard-view-background p-6 text-center">
+                                  <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                  <p className="text-sm text-gray-600 mb-2">No compliance updates data available</p>
+                                  <p className="text-xs text-gray-400">
+                                    {product.step4Results?.updates_count > 0
+                                      ? 'Try reloading the page or re-running Step 4'
+                                      : 'Run Step 4 to identify compliance updates'}
+                                  </p>
                                 </div>
                               )}
                             </div>
